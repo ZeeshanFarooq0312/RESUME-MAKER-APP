@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Process java -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"ProcessId=15236\")",
+      "PowerShell(Get-Process -Id 15236 -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='java.exe'\")",
+      "PowerShell(Stop-Process -Id 3012 -Force)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='java.exe'\" | Where-Object { $_.CommandLine -match 'gradlew|GradleServer' } | Select-Object ProcessId, CommandLine | Format-Table -Wrap)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"ProcessId=16948\")",
+      "PowerShell(Get-Command tar -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command 7z -ErrorAction SilentlyContinue)",
+      "PowerShell($ndk = \"C:\\\\Users\\\\ZeshanFarooq\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\ndk\\\\28.2.13676358\"; if \\(Test-Path $ndk\\) { Write-Output \"EXISTS\"; Get-ChildItem $ndk | Select-Object Name; Write-Output \"---source.properties check---\"; Test-Path \\(Join-Path $ndk \"source.properties\"\\) } else { Write-Output \"NOT FOUND\" })",
+      "PowerShell(Resolve-DnsName storage.googleapis.com -ErrorAction SilentlyContinue; Write-Output \"---ping---\"; Test-Connection -ComputerName 8.8.8.8 -Count 2 -ErrorAction SilentlyContinue; Write-Output \"---proxy env---\"; Write-Output \"HTTP_PROXY=$env:HTTP_PROXY HTTPS_PROXY=$env:HTTPS_PROXY\")",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"https://storage.googleapis.com/download.flutter.io/\" -Method Head -TimeoutSec 15; Write-Output \"STATUS: $\\($r.StatusCode\\)\" } catch { Write-Output \"FAILED: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"https://storage.googleapis.com/download.flutter.io/\" -Method Head -TimeoutSec 15 -UseBasicParsing; Write-Output \"STATUS: $\\($r.StatusCode\\)\" } catch { Write-Output \"FAILED: $\\($_.Exception.Message\\)\" })",
+      "Bash(flutter run *)",
+      "Bash(./gradlew --stop)",
+      "Bash(find C:/Users/ZeshanFarooq/AppData/Local/Pub/Cache/hosted/pub.dev/file_picker-11.0.2/android/src/main -iname *.kt -o -iname *.java)",
+      "Bash(flutter --version)"
+    ]
+  }
+}
