@@ -8,6 +8,7 @@ import 'package:google_mlkit_translation/google_mlkit_translation.dart' show Tra
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:screen_protector/screen_protector.dart';
+import '../models/document_entry.dart';
 import '../models/resume_data.dart';
 import '../pdf/pdf_fonts.dart';
 import '../pdf/templates/classic_template.dart';
@@ -19,6 +20,7 @@ import '../pdf/templates/modern_template.dart';
 import '../pdf/templates/professional_template.dart';
 import '../pdf/templates/simple_bold_template.dart';
 import '../pdf/templates/technical_template.dart';
+import '../services/documents_repository.dart';
 import '../services/download_credits_service.dart';
 import '../services/translation_service.dart';
 import '../theme/app_theme.dart';
@@ -63,8 +65,18 @@ Future<pw.Document> _buildDoc(ResumeTemplate template, ResumeData data) {
 class PreviewScreen extends StatefulWidget {
   final ResumeData resumeData;
   final ResumeTemplate template;
+  final String? documentId;
+  final bool isSample;
+  final VoidCallback? onUseTemplate;
 
-  const PreviewScreen({super.key, required this.resumeData, required this.template});
+  const PreviewScreen({
+    super.key,
+    required this.resumeData,
+    required this.template,
+    this.documentId,
+    this.isSample = false,
+    this.onUseTemplate,
+  });
 
   @override
   State<PreviewScreen> createState() => _PreviewScreenState();
@@ -225,6 +237,29 @@ class _PreviewScreenState extends State<PreviewScreen> {
   String get _fileName =>
       '${widget.resumeData.personalInfo.fullName.isEmpty ? "resume" : widget.resumeData.personalInfo.fullName.replaceAll(" ", "_")}.pdf';
 
+  // Bumps the saved document's updatedAt/templateId after a successful
+  // download so the dashboard reflects the template actually used. Only
+  // documents opened through the dashboard/templates flow carry an id —
+  // skip silently otherwise (e.g. none exists yet for this document).
+  Future<void> _touchDocumentEntry() async {
+    final id = widget.documentId;
+    if (id == null) return;
+    final entries = await DocumentsRepository.loadAll();
+    final index = entries.indexWhere((e) => e.id == id);
+    if (index == -1) return;
+    final existing = entries[index];
+    await DocumentsRepository.save(DocumentEntry(
+      id: existing.id,
+      kind: existing.kind,
+      title: existing.title,
+      templateId: widget.template.name,
+      updatedAt: DateTime.now(),
+      isFavorite: existing.isFavorite,
+      completionPercent: widget.resumeData.completionPercent,
+      payload: widget.resumeData.toJson(),
+    ));
+  }
+
   Future<void> _onDownloadPressed() async {
     if (_credits <= 0) {
       final unlocked = await showPaywallSheet(context);
@@ -238,6 +273,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
       if (!spent) return; // race with another download; bail safely
       final bytes = await _pdfFuture;
       await Printing.sharePdf(bytes: bytes, filename: _fileName);
+      await _touchDocumentEntry();
     } finally {
       if (mounted) {
         setState(() => _downloading = false);
@@ -252,11 +288,12 @@ class _PreviewScreenState extends State<PreviewScreen> {
       appBar: AppBar(
         title: Text(_templateTitles[widget.template]!),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.translate),
-            tooltip: 'Translate',
-            onPressed: _openTranslateSheet,
-          ),
+          if (!widget.isSample)
+            IconButton(
+              icon: const Icon(Icons.translate),
+              tooltip: 'Translate',
+              onPressed: _openTranslateSheet,
+            ),
         ],
       ),
       body: Column(
@@ -265,10 +302,12 @@ class _PreviewScreenState extends State<PreviewScreen> {
             width: double.infinity,
             color: AppColors.slate600.withValues(alpha: 0.06),
             padding: const EdgeInsets.symmetric(vertical: 6),
-            child: const Text(
-              'Double-tap or pinch to zoom in for details',
+            child: Text(
+              widget.isSample
+                  ? 'Sample preview with placeholder text — double-tap or pinch to zoom'
+                  : 'Double-tap or pinch to zoom in for details',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.slate600, fontSize: 12),
+              style: const TextStyle(color: AppColors.slate600, fontSize: 12),
             ),
           ),
           if (_translatedLanguage != null)
@@ -309,30 +348,39 @@ class _PreviewScreenState extends State<PreviewScreen> {
                 color: Colors.white,
                 border: Border(top: BorderSide(color: Color(0xFFE1E4E8))),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _credits > 0
-                          ? '$_credits download${_credits == 1 ? '' : 's'} available'
-                          : 'Preview is free — \$3 unlocks 2 downloads',
-                      style: const TextStyle(color: AppColors.slate600, fontSize: 12.5),
+              child: widget.isSample
+                  ? SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: widget.onUseTemplate,
+                        child: const Text('Use This Template'),
+                      ),
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _credits > 0
+                                ? '$_credits download${_credits == 1 ? '' : 's'} available'
+                                : 'Preview is free — \$3 unlocks 2 downloads',
+                            style: const TextStyle(color: AppColors.slate600, fontSize: 12.5),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: _downloading ? null : _onDownloadPressed,
+                          icon: _downloading
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : Icon(_credits > 0 ? Icons.download : Icons.lock_outline, size: 18),
+                          label: Text(_credits > 0 ? 'Download PDF' : 'Unlock & Download'),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: _downloading ? null : _onDownloadPressed,
-                    icon: _downloading
-                        ? const SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : Icon(_credits > 0 ? Icons.download : Icons.lock_outline, size: 18),
-                    label: Text(_credits > 0 ? 'Download PDF' : 'Unlock & Download'),
-                  ),
-                ],
-              ),
             ),
           ),
         ],

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'theme/app_theme.dart';
-import 'screens/document_home_screen.dart';
+import 'screens/app_shell.dart';
 
 void main() {
   // This app has no INTERNET permission and works fully offline, so
@@ -20,7 +20,7 @@ class ResumeBuilderApp extends StatelessWidget {
       title: 'Smart Resume Builder',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: const DocumentHomeScreen(),
+      home: const AppShell(),
     );
   }
 }

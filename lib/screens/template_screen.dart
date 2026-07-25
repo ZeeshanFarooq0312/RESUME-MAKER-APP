@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/sample_documents.dart';
 import '../models/resume_data.dart';
 import '../theme/app_theme.dart';
 import 'preview_screen.dart';
@@ -17,7 +18,8 @@ enum ResumeTemplate {
 
 class TemplateScreen extends StatelessWidget {
   final ResumeData resumeData;
-  const TemplateScreen({super.key, required this.resumeData});
+  final String? documentId;
+  const TemplateScreen({super.key, required this.resumeData, this.documentId});
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +31,7 @@ class TemplateScreen extends StatelessWidget {
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
+          childAspectRatio: 0.78,
           children: [
             _TemplateCard(
               title: 'Classic',
@@ -103,7 +106,18 @@ class TemplateScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PreviewScreen(resumeData: resumeData, template: template),
+        builder: (_) => PreviewScreen(
+          resumeData: sampleResumeData(),
+          template: template,
+          isSample: true,
+          onUseTemplate: () => Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  PreviewScreen(resumeData: resumeData, template: template, documentId: documentId),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -182,15 +196,27 @@ class _TemplateCard extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: Theme.of(context).textTheme.titleLarge),
-                      Text(subtitle,
-                          style: const TextStyle(color: AppColors.slate600, fontSize: 12)),
-                    ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleLarge,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(color: AppColors.slate600, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
-                  if (isPremium)
+                  if (isPremium) ...[
+                    const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
@@ -203,6 +229,7 @@ class _TemplateCard extends StatelessWidget {
                               fontWeight: FontWeight.bold,
                               color: AppColors.slate900)),
                     ),
+                  ],
                 ],
               ),
             ),

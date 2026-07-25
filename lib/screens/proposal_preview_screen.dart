@@ -7,11 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:screen_protector/screen_protector.dart';
+import '../models/document_entry.dart';
 import '../models/proposal_data.dart';
 import '../pdf/pdf_fonts.dart';
 import '../pdf/templates/proposal_classic_template.dart';
 import '../pdf/templates/proposal_minimal_template.dart';
 import '../pdf/templates/proposal_modern_template.dart';
+import '../services/documents_repository.dart';
 import '../services/download_credits_service.dart';
 import '../theme/app_theme.dart';
 import 'paywall_sheet.dart';
@@ -37,8 +39,18 @@ Future<pw.Document> _buildDoc(ProposalTemplate template, ProposalData data) {
 class ProposalPreviewScreen extends StatefulWidget {
   final ProposalData data;
   final ProposalTemplate template;
+  final String? documentId;
+  final bool isSample;
+  final VoidCallback? onUseTemplate;
 
-  const ProposalPreviewScreen({super.key, required this.data, required this.template});
+  const ProposalPreviewScreen({
+    super.key,
+    required this.data,
+    required this.template,
+    this.documentId,
+    this.isSample = false,
+    this.onUseTemplate,
+  });
 
   @override
   State<ProposalPreviewScreen> createState() => _ProposalPreviewScreenState();
@@ -90,6 +102,25 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
   String get _fileName =>
       '${widget.data.title.isEmpty ? "proposal" : widget.data.title.replaceAll(" ", "_")}.pdf';
 
+  Future<void> _touchDocumentEntry() async {
+    final id = widget.documentId;
+    if (id == null) return;
+    final entries = await DocumentsRepository.loadAll();
+    final index = entries.indexWhere((e) => e.id == id);
+    if (index == -1) return;
+    final existing = entries[index];
+    await DocumentsRepository.save(DocumentEntry(
+      id: existing.id,
+      kind: existing.kind,
+      title: existing.title,
+      templateId: widget.template.name,
+      updatedAt: DateTime.now(),
+      isFavorite: existing.isFavorite,
+      completionPercent: widget.data.completionPercent,
+      payload: widget.data.toJson(),
+    ));
+  }
+
   Future<void> _onDownloadPressed() async {
     if (_credits <= 0) {
       final unlocked = await showPaywallSheet(context);
@@ -103,6 +134,7 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
       if (!spent) return;
       final bytes = await _pdfFuture;
       await Printing.sharePdf(bytes: bytes, filename: _fileName);
+      await _touchDocumentEntry();
     } finally {
       if (mounted) {
         setState(() => _downloading = false);
@@ -123,10 +155,12 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
             width: double.infinity,
             color: AppColors.slate600.withValues(alpha: 0.06),
             padding: const EdgeInsets.symmetric(vertical: 6),
-            child: const Text(
-              'Double-tap or pinch to zoom in for details',
+            child: Text(
+              widget.isSample
+                  ? 'Sample preview with placeholder text — double-tap or pinch to zoom'
+                  : 'Double-tap or pinch to zoom in for details',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.slate600, fontSize: 12),
+              style: const TextStyle(color: AppColors.slate600, fontSize: 12),
             ),
           ),
           Expanded(
@@ -147,30 +181,39 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
                 color: Colors.white,
                 border: Border(top: BorderSide(color: Color(0xFFE1E4E8))),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _credits > 0
-                          ? '$_credits download${_credits == 1 ? '' : 's'} available'
-                          : 'Preview is free — \$3 unlocks 2 downloads',
-                      style: const TextStyle(color: AppColors.slate600, fontSize: 12.5),
+              child: widget.isSample
+                  ? SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: widget.onUseTemplate,
+                        child: const Text('Use This Template'),
+                      ),
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _credits > 0
+                                ? '$_credits download${_credits == 1 ? '' : 's'} available'
+                                : 'Preview is free — \$3 unlocks 2 downloads',
+                            style: const TextStyle(color: AppColors.slate600, fontSize: 12.5),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: _downloading ? null : _onDownloadPressed,
+                          icon: _downloading
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : Icon(_credits > 0 ? Icons.download : Icons.lock_outline, size: 18),
+                          label: Text(_credits > 0 ? 'Download PDF' : 'Unlock & Download'),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: _downloading ? null : _onDownloadPressed,
-                    icon: _downloading
-                        ? const SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : Icon(_credits > 0 ? Icons.download : Icons.lock_outline, size: 18),
-                    label: Text(_credits > 0 ? 'Download PDF' : 'Unlock & Download'),
-                  ),
-                ],
-              ),
             ),
           ),
         ],

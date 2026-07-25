@@ -69,4 +69,18 @@ class ProposalData {
   String encode() => jsonEncode(toJson());
 
   factory ProposalData.decode(String source) => ProposalData.fromJson(jsonDecode(source));
+
+  /// Weighted completion score shown on the dashboard's document cards.
+  double get completionPercent {
+    var score = 0.0;
+    if (title.isNotEmpty) score += 10;
+    if (senderName.isNotEmpty || senderCompany.isNotEmpty) score += 10;
+    if (clientName.isNotEmpty || clientCompany.isNotEmpty) score += 15;
+    if (overview.isNotEmpty) score += 20;
+    if (scopeOfWork.isNotEmpty) score += 20;
+    if (timeline.isNotEmpty) score += 10;
+    if (pricing.isNotEmpty) score += 10;
+    if (termsAndConditions.isNotEmpty) score += 5;
+    return score.clamp(0, 100);
+  }
 }

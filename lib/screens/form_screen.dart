@@ -2,151 +2,127 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../data/skill_suggestions.dart';
+import '../models/document_entry.dart';
 import '../models/resume_data.dart';
+import '../services/documents_repository.dart';
 import '../theme/app_theme.dart';
-import 'home_screen.dart';
+import '../widgets/accordion_section.dart';
+import 'preview_screen.dart';
 import 'template_screen.dart';
 
+const _uuid = Uuid();
+
 class FormScreen extends StatefulWidget {
-  final ResumeData resumeData;
-  const FormScreen({super.key, required this.resumeData});
+  final DocumentEntry? entry;
+  final ResumeTemplate? initialTemplate;
+  const FormScreen({super.key, this.entry, this.initialTemplate});
 
   @override
   State<FormScreen> createState() => _FormScreenState();
 }
 
 class _FormScreenState extends State<FormScreen> {
-  int _step = 0;
-  late ResumeData data;
+  late final String _entryId = widget.entry?.id ?? _uuid.v4();
+  late final ResumeData data =
+      widget.entry != null ? ResumeData.fromJson(widget.entry!.payload) : ResumeData();
 
-  @override
-  void initState() {
-    super.initState();
-    data = widget.resumeData;
+  Future<void> _saveEntry() async {
+    await DocumentsRepository.save(DocumentEntry(
+      id: _entryId,
+      kind: DocumentKind.resume,
+      title: data.personalInfo.fullName.isEmpty ? 'My Resume' : data.personalInfo.fullName,
+      templateId: widget.initialTemplate?.name ??
+          widget.entry?.templateId ??
+          ResumeTemplate.classic.name,
+      updatedAt: DateTime.now(),
+      completionPercent: data.completionPercent,
+      payload: data.toJson(),
+    ));
   }
 
-  Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(kResumeStorageKey, data.encode());
+  Future<void> _onBack() async {
+    await _saveEntry();
+    if (mounted) Navigator.pop(context);
   }
 
-  void _next() {
-    _save();
-    if (_step < 3) {
-      setState(() => _step++);
+  Future<void> _onExport() async {
+    await _saveEntry();
+    if (!mounted) return;
+    final template = widget.initialTemplate;
+    if (template != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PreviewScreen(resumeData: data, template: template, documentId: _entryId),
+        ),
+      );
     } else {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TemplateScreen(resumeData: data)),
+        MaterialPageRoute(builder: (_) => TemplateScreen(resumeData: data, documentId: _entryId)),
       );
     }
   }
 
-  void _back() {
-    if (_step > 0) {
-      setState(() => _step--);
-    } else {
-      Navigator.pop(context);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final steps = ['Personal Info', 'Experience', 'Education', 'Skills'];
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: _back,
-        ),
-        title: Text(steps[_step]),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _onBack),
+        title: Text(widget.entry == null ? 'New Resume' : 'Edit Resume'),
       ),
       body: SafeArea(
-        child: Column(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
           children: [
-            _ProgressBar(step: _step, total: steps.length),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: IndexedStack(
-                  index: _step,
-                  children: [
-                    _PersonalInfoStep(data: data),
-                    _ExperienceStep(data: data),
-                    _EducationStep(data: data),
-                    _SkillsStep(data: data),
-                  ],
-                ),
-              ),
+            AccordionSection(
+              title: 'Personal Data',
+              initiallyExpanded: true,
+              child: _PersonalDataFields(data: data),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _next,
-                  child: Text(_step < 3 ? 'Continue' : 'Choose Template'),
-                ),
-              ),
-            ),
+            AccordionSection(title: 'Summary', child: _SummaryField(data: data)),
+            AccordionSection(title: 'Experience', child: _ExperienceSection(data: data)),
+            AccordionSection(title: 'Education', child: _EducationSection(data: data)),
+            AccordionSection(title: 'Skills', child: _SkillsSection(data: data)),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ProgressBar extends StatelessWidget {
-  final int step;
-  final int total;
-  const _ProgressBar({required this.step, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: List.generate(total, (i) {
-          final active = i <= step;
-          return Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              height: 4,
-              decoration: BoxDecoration(
-                color: active ? AppColors.gold : const Color(0xFFE1E4E8),
-                borderRadius: BorderRadius.circular(4),
-              ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _onExport,
+              child: const Text('Preview & Export'),
             ),
-          );
-        }),
+          ),
+        ),
       ),
     );
   }
 }
 
-// ---------- Step 1: Personal Info ----------
-// StatefulWidget so each keystroke only rebuilds this step's own subtree
-// (via the field's local TextEditingController) instead of bubbling a
-// setState up to FormScreen, which would rebuild every step in the
-// IndexedStack on every character typed.
-class _PersonalInfoStep extends StatefulWidget {
+// ---------- Personal Data ----------
+// StatefulWidget so each keystroke only rebuilds this section's own subtree
+// via the field's local TextEditingController, never the whole form.
+class _PersonalDataFields extends StatefulWidget {
   final ResumeData data;
-  const _PersonalInfoStep({required this.data});
+  const _PersonalDataFields({required this.data});
 
   @override
-  State<_PersonalInfoStep> createState() => _PersonalInfoStepState();
+  State<_PersonalDataFields> createState() => _PersonalDataFieldsState();
 }
 
-class _PersonalInfoStepState extends State<_PersonalInfoStep> {
+class _PersonalDataFieldsState extends State<_PersonalDataFields> {
   late final _controllers = <String, TextEditingController>{
     'fullName': TextEditingController(text: widget.data.personalInfo.fullName),
     'jobTitle': TextEditingController(text: widget.data.personalInfo.jobTitle),
     'email': TextEditingController(text: widget.data.personalInfo.email),
     'phone': TextEditingController(text: widget.data.personalInfo.phone),
     'location': TextEditingController(text: widget.data.personalInfo.location),
-    'summary': TextEditingController(text: widget.data.personalInfo.summary),
   };
 
   @override
@@ -176,7 +152,7 @@ class _PersonalInfoStepState extends State<_PersonalInfoStep> {
   @override
   Widget build(BuildContext context) {
     final info = widget.data.personalInfo;
-    return ListView(
+    return Column(
       children: [
         Center(
           child: _PhotoPicker(
@@ -185,23 +161,22 @@ class _PersonalInfoStepState extends State<_PersonalInfoStep> {
             onRemove: _removePhoto,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         _field('Full Name', _controllers['fullName']!, (v) => info.fullName = v),
         _field('Job Title', _controllers['jobTitle']!, (v) => info.jobTitle = v),
         _field('Email', _controllers['email']!, (v) => info.email = v),
         _field('Phone', _controllers['phone']!, (v) => info.phone = v),
-        _field('Location', _controllers['location']!, (v) => info.location = v),
-        _field('Professional Summary', _controllers['summary']!, (v) => info.summary = v, maxLines: 4),
+        _field('Location', _controllers['location']!, (v) => info.location = v, isLast: true),
       ],
     );
   }
 
-  Widget _field(String label, TextEditingController controller, Function(String) onSave, {int maxLines = 1}) {
+  Widget _field(String label, TextEditingController controller, Function(String) onSave,
+      {bool isLast = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
       child: TextFormField(
         controller: controller,
-        maxLines: maxLines,
         decoration: InputDecoration(labelText: label),
         onChanged: onSave,
       ),
@@ -263,28 +238,56 @@ class _PhotoPicker extends StatelessWidget {
   }
 }
 
-// ---------- Step 2: Experience ----------
-// StatefulWidget only to own the add/delete rebuild locally; typing inside
-// a card never reaches this widget (see _ExperienceCard).
-class _ExperienceStep extends StatefulWidget {
+// ---------- Summary ----------
+class _SummaryField extends StatefulWidget {
   final ResumeData data;
-  const _ExperienceStep({required this.data});
+  const _SummaryField({required this.data});
 
   @override
-  State<_ExperienceStep> createState() => _ExperienceStepState();
+  State<_SummaryField> createState() => _SummaryFieldState();
 }
 
-class _ExperienceStepState extends State<_ExperienceStep> {
+class _SummaryFieldState extends State<_SummaryField> {
+  late final _controller = TextEditingController(text: widget.data.personalInfo.summary);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    return TextFormField(
+      controller: _controller,
+      maxLines: 4,
+      decoration: const InputDecoration(labelText: 'Professional Summary'),
+      onChanged: (v) => widget.data.personalInfo.summary = v,
+    );
+  }
+}
+
+// ---------- Experience ----------
+// StatefulWidget only to own the add/delete rebuild locally; typing inside
+// a card never reaches this widget (see _ExperienceCard).
+class _ExperienceSection extends StatefulWidget {
+  final ResumeData data;
+  const _ExperienceSection({required this.data});
+
+  @override
+  State<_ExperienceSection> createState() => _ExperienceSectionState();
+}
+
+class _ExperienceSectionState extends State<_ExperienceSection> {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
       children: [
         ...widget.data.experience.map((e) => _ExperienceCard(
               key: ValueKey(e.id),
               entry: e,
               onDelete: () => setState(() => widget.data.experience.remove(e)),
             )),
-        const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: () => setState(() => widget.data.experience.add(ExperienceEntry())),
           icon: const Icon(Icons.add, size: 18),
@@ -328,9 +331,9 @@ class _ExperienceCardState extends State<_ExperienceCard> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.slate100,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE1E4E8)),
+        border: Border.all(color: const Color(0xFFE7E5F3)),
       ),
       child: Column(
         children: [
@@ -345,13 +348,13 @@ class _ExperienceCardState extends State<_ExperienceCard> {
           ),
           TextFormField(
             controller: _role,
-            decoration: const InputDecoration(labelText: 'Job Title'),
+            decoration: const InputDecoration(labelText: 'Job Title', filled: true, fillColor: Colors.white),
             onChanged: (v) => entry.role = v,
           ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _company,
-            decoration: const InputDecoration(labelText: 'Company'),
+            decoration: const InputDecoration(labelText: 'Company', filled: true, fillColor: Colors.white),
             onChanged: (v) => entry.company = v,
           ),
           const SizedBox(height: 12),
@@ -360,7 +363,8 @@ class _ExperienceCardState extends State<_ExperienceCard> {
               Expanded(
                 child: TextFormField(
                   controller: _startDate,
-                  decoration: const InputDecoration(labelText: 'Start (e.g. Jan 2022)'),
+                  decoration: const InputDecoration(
+                      labelText: 'Start (e.g. Jan 2022)', filled: true, fillColor: Colors.white),
                   onChanged: (v) => entry.startDate = v,
                 ),
               ),
@@ -368,7 +372,8 @@ class _ExperienceCardState extends State<_ExperienceCard> {
               Expanded(
                 child: TextFormField(
                   controller: _endDate,
-                  decoration: const InputDecoration(labelText: 'End (or Present)'),
+                  decoration: const InputDecoration(
+                      labelText: 'End (or Present)', filled: true, fillColor: Colors.white),
                   onChanged: (v) => entry.endDate = v,
                 ),
               ),
@@ -378,7 +383,8 @@ class _ExperienceCardState extends State<_ExperienceCard> {
           TextFormField(
             controller: _description,
             maxLines: 3,
-            decoration: const InputDecoration(labelText: 'Key Responsibilities / Achievements'),
+            decoration: const InputDecoration(
+                labelText: 'Key Responsibilities / Achievements', filled: true, fillColor: Colors.white),
             onChanged: (v) => entry.description = v,
           ),
         ],
@@ -387,26 +393,25 @@ class _ExperienceCardState extends State<_ExperienceCard> {
   }
 }
 
-// ---------- Step 3: Education ----------
-class _EducationStep extends StatefulWidget {
+// ---------- Education ----------
+class _EducationSection extends StatefulWidget {
   final ResumeData data;
-  const _EducationStep({required this.data});
+  const _EducationSection({required this.data});
 
   @override
-  State<_EducationStep> createState() => _EducationStepState();
+  State<_EducationSection> createState() => _EducationSectionState();
 }
 
-class _EducationStepState extends State<_EducationStep> {
+class _EducationSectionState extends State<_EducationSection> {
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    return Column(
       children: [
         ...widget.data.education.map((e) => _EducationCard(
               key: ValueKey(e.id),
               entry: e,
               onDelete: () => setState(() => widget.data.education.remove(e)),
             )),
-        const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: () => setState(() => widget.data.education.add(EducationEntry())),
           icon: const Icon(Icons.add, size: 18),
@@ -448,9 +453,9 @@ class _EducationCardState extends State<_EducationCard> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.slate100,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE1E4E8)),
+        border: Border.all(color: const Color(0xFFE7E5F3)),
       ),
       child: Column(
         children: [
@@ -465,13 +470,15 @@ class _EducationCardState extends State<_EducationCard> {
           ),
           TextFormField(
             controller: _degree,
-            decoration: const InputDecoration(labelText: 'Degree / Program'),
+            decoration:
+                const InputDecoration(labelText: 'Degree / Program', filled: true, fillColor: Colors.white),
             onChanged: (v) => entry.degree = v,
           ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _school,
-            decoration: const InputDecoration(labelText: 'School / University'),
+            decoration: const InputDecoration(
+                labelText: 'School / University', filled: true, fillColor: Colors.white),
             onChanged: (v) => entry.school = v,
           ),
           const SizedBox(height: 12),
@@ -480,7 +487,8 @@ class _EducationCardState extends State<_EducationCard> {
               Expanded(
                 child: TextFormField(
                   controller: _startDate,
-                  decoration: const InputDecoration(labelText: 'Start Year'),
+                  decoration:
+                      const InputDecoration(labelText: 'Start Year', filled: true, fillColor: Colors.white),
                   onChanged: (v) => entry.startDate = v,
                 ),
               ),
@@ -488,7 +496,8 @@ class _EducationCardState extends State<_EducationCard> {
               Expanded(
                 child: TextFormField(
                   controller: _endDate,
-                  decoration: const InputDecoration(labelText: 'End Year'),
+                  decoration:
+                      const InputDecoration(labelText: 'End Year', filled: true, fillColor: Colors.white),
                   onChanged: (v) => entry.endDate = v,
                 ),
               ),
@@ -500,16 +509,16 @@ class _EducationCardState extends State<_EducationCard> {
   }
 }
 
-// ---------- Step 4: Skills ----------
-class _SkillsStep extends StatefulWidget {
+// ---------- Skills ----------
+class _SkillsSection extends StatefulWidget {
   final ResumeData data;
-  const _SkillsStep({required this.data});
+  const _SkillsSection({required this.data});
 
   @override
-  State<_SkillsStep> createState() => _SkillsStepState();
+  State<_SkillsSection> createState() => _SkillsSectionState();
 }
 
-class _SkillsStepState extends State<_SkillsStep> {
+class _SkillsSectionState extends State<_SkillsSection> {
   TextEditingController? _fieldController;
 
   void _addSkill([String? skill]) {
@@ -544,7 +553,8 @@ class _SkillsStepState extends State<_SkillsStep> {
                   return TextFormField(
                     controller: controller,
                     focusNode: focusNode,
-                    decoration: const InputDecoration(labelText: 'Add a skill (e.g. Project Management)'),
+                    decoration:
+                        const InputDecoration(labelText: 'Add a skill (e.g. Project Management)'),
                     onFieldSubmitted: (_) => _addSkill(),
                   );
                 },
@@ -579,28 +589,24 @@ class _SkillsStepState extends State<_SkillsStep> {
             IconButton.filled(
               onPressed: () => _addSkill(),
               icon: const Icon(Icons.add),
-              style: IconButton.styleFrom(backgroundColor: AppColors.slate900),
+              style: IconButton.styleFrom(backgroundColor: AppColors.primary),
             ),
           ],
         ),
-        const SizedBox(height: 20),
-        Expanded(
-          child: SingleChildScrollView(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: widget.data.skills
-                  .map((s) => Chip(
-                        label: Text(s),
-                        backgroundColor: AppColors.goldLight.withValues(alpha: 0.4),
-                        deleteIcon: const Icon(Icons.close, size: 16),
-                        onDeleted: () {
-                          setState(() => widget.data.skills.remove(s));
-                        },
-                      ))
-                  .toList(),
-            ),
-          ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: widget.data.skills
+              .map((s) => Chip(
+                    label: Text(s),
+                    backgroundColor: AppColors.primaryLight,
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                    onDeleted: () {
+                      setState(() => widget.data.skills.remove(s));
+                    },
+                  ))
+              .toList(),
         ),
       ],
     );

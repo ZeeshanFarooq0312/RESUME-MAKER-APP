@@ -1,126 +1,113 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
+import '../models/document_entry.dart';
 import '../models/proposal_data.dart';
+import '../services/documents_repository.dart';
 import '../theme/app_theme.dart';
-import 'proposal_home_screen.dart';
+import '../widgets/accordion_section.dart';
+import 'proposal_preview_screen.dart';
 import 'proposal_template_screen.dart';
 
+const _uuid = Uuid();
+
 class ProposalFormScreen extends StatefulWidget {
-  final ProposalData data;
-  const ProposalFormScreen({super.key, required this.data});
+  final DocumentEntry? entry;
+  final ProposalTemplate? initialTemplate;
+  const ProposalFormScreen({super.key, this.entry, this.initialTemplate});
 
   @override
   State<ProposalFormScreen> createState() => _ProposalFormScreenState();
 }
 
 class _ProposalFormScreenState extends State<ProposalFormScreen> {
-  int _step = 0;
+  late final String _entryId = widget.entry?.id ?? _uuid.v4();
+  late final ProposalData data =
+      widget.entry != null ? ProposalData.fromJson(widget.entry!.payload) : ProposalData();
 
-  Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(kProposalStorageKey, widget.data.encode());
+  Future<void> _saveEntry() async {
+    await DocumentsRepository.save(DocumentEntry(
+      id: _entryId,
+      kind: DocumentKind.proposal,
+      title: data.title.isEmpty ? 'My Proposal' : data.title,
+      templateId: widget.initialTemplate?.name ??
+          widget.entry?.templateId ??
+          ProposalTemplate.classic.name,
+      updatedAt: DateTime.now(),
+      completionPercent: data.completionPercent,
+      payload: data.toJson(),
+    ));
   }
 
-  void _next() {
-    _save();
-    if (_step < 3) {
-      setState(() => _step++);
+  Future<void> _onBack() async {
+    await _saveEntry();
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _onExport() async {
+    await _saveEntry();
+    if (!mounted) return;
+    final template = widget.initialTemplate;
+    if (template != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProposalPreviewScreen(data: data, template: template, documentId: _entryId),
+        ),
+      );
     } else {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => ProposalTemplateScreen(data: widget.data)),
+        MaterialPageRoute(
+          builder: (_) => ProposalTemplateScreen(data: data, documentId: _entryId),
+        ),
       );
-    }
-  }
-
-  void _back() {
-    if (_step > 0) {
-      setState(() => _step--);
-    } else {
-      Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final steps = ['Parties & Date', 'Overview & Scope', 'Timeline & Pricing', 'Terms'];
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _back),
-        title: Text(steps[_step]),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _onBack),
+        title: Text(widget.entry == null ? 'New Proposal' : 'Edit Proposal'),
       ),
       body: SafeArea(
-        child: Column(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
           children: [
-            _ProgressBar(step: _step, total: steps.length),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: IndexedStack(
-                  index: _step,
-                  children: [
-                    _PartiesStep(data: widget.data),
-                    _OverviewScopeStep(data: widget.data),
-                    _TimelinePricingStep(data: widget.data),
-                    _TermsStep(data: widget.data),
-                  ],
-                ),
-              ),
+            AccordionSection(
+              title: 'Parties & Date',
+              initiallyExpanded: true,
+              child: _PartiesFields(data: data),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _next,
-                  child: Text(_step < 3 ? 'Continue' : 'Choose Template'),
-                ),
-              ),
-            ),
+            AccordionSection(title: 'Overview & Scope', child: _OverviewScopeFields(data: data)),
+            AccordionSection(title: 'Timeline & Pricing', child: _TimelinePricingFields(data: data)),
+            AccordionSection(title: 'Terms', child: _TermsFields(data: data)),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(onPressed: _onExport, child: const Text('Preview & Export')),
+          ),
         ),
       ),
     );
   }
 }
 
-class _ProgressBar extends StatelessWidget {
-  final int step;
-  final int total;
-  const _ProgressBar({required this.step, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: List.generate(total, (i) {
-          final active = i <= step;
-          return Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              height: 4,
-              decoration: BoxDecoration(
-                color: active ? AppColors.gold : const Color(0xFFE1E4E8),
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-}
-
-class _PartiesStep extends StatefulWidget {
+class _PartiesFields extends StatefulWidget {
   final ProposalData data;
-  const _PartiesStep({required this.data});
+  const _PartiesFields({required this.data});
 
   @override
-  State<_PartiesStep> createState() => _PartiesStepState();
+  State<_PartiesFields> createState() => _PartiesFieldsState();
 }
 
-class _PartiesStepState extends State<_PartiesStep> {
+class _PartiesFieldsState extends State<_PartiesFields> {
   late final Map<String, TextEditingController> _c = {
     'title': TextEditingController(text: widget.data.title),
     'senderName': TextEditingController(text: widget.data.senderName),
@@ -143,7 +130,7 @@ class _PartiesStepState extends State<_PartiesStep> {
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
-    return ListView(
+    return Column(
       children: [
         _field('Proposal Title', _c['title']!, (v) => d.title = v),
         const _SectionLabel('From'),
@@ -151,18 +138,19 @@ class _PartiesStepState extends State<_PartiesStep> {
         _field('Your Company', _c['senderCompany']!, (v) => d.senderCompany = v),
         _field('Email', _c['senderEmail']!, (v) => d.senderEmail = v),
         _field('Phone', _c['senderPhone']!, (v) => d.senderPhone = v),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         const _SectionLabel('To'),
         _field('Client Name', _c['clientName']!, (v) => d.clientName = v),
         _field('Client Company', _c['clientCompany']!, (v) => d.clientCompany = v),
-        _field('Date', _c['date']!, (v) => d.date = v),
+        _field('Date', _c['date']!, (v) => d.date = v, isLast: true),
       ],
     );
   }
 
-  Widget _field(String label, TextEditingController controller, Function(String) onSave) {
+  Widget _field(String label, TextEditingController controller, Function(String) onSave,
+      {bool isLast = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
       child: TextFormField(
         controller: controller,
         decoration: InputDecoration(labelText: label),
@@ -172,15 +160,15 @@ class _PartiesStepState extends State<_PartiesStep> {
   }
 }
 
-class _OverviewScopeStep extends StatefulWidget {
+class _OverviewScopeFields extends StatefulWidget {
   final ProposalData data;
-  const _OverviewScopeStep({required this.data});
+  const _OverviewScopeFields({required this.data});
 
   @override
-  State<_OverviewScopeStep> createState() => _OverviewScopeStepState();
+  State<_OverviewScopeFields> createState() => _OverviewScopeFieldsState();
 }
 
-class _OverviewScopeStepState extends State<_OverviewScopeStep> {
+class _OverviewScopeFieldsState extends State<_OverviewScopeFields> {
   late final _overview = TextEditingController(text: widget.data.overview);
   late final _scope = TextEditingController(text: widget.data.scopeOfWork);
 
@@ -194,7 +182,7 @@ class _OverviewScopeStepState extends State<_OverviewScopeStep> {
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
-    return ListView(
+    return Column(
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 14),
@@ -222,15 +210,15 @@ class _OverviewScopeStepState extends State<_OverviewScopeStep> {
   }
 }
 
-class _TimelinePricingStep extends StatefulWidget {
+class _TimelinePricingFields extends StatefulWidget {
   final ProposalData data;
-  const _TimelinePricingStep({required this.data});
+  const _TimelinePricingFields({required this.data});
 
   @override
-  State<_TimelinePricingStep> createState() => _TimelinePricingStepState();
+  State<_TimelinePricingFields> createState() => _TimelinePricingFieldsState();
 }
 
-class _TimelinePricingStepState extends State<_TimelinePricingStep> {
+class _TimelinePricingFieldsState extends State<_TimelinePricingFields> {
   late final _timeline = TextEditingController(text: widget.data.timeline);
   late final _pricing = TextEditingController(text: widget.data.pricing);
 
@@ -244,7 +232,7 @@ class _TimelinePricingStepState extends State<_TimelinePricingStep> {
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
-    return ListView(
+    return Column(
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 14),
@@ -272,15 +260,15 @@ class _TimelinePricingStepState extends State<_TimelinePricingStep> {
   }
 }
 
-class _TermsStep extends StatefulWidget {
+class _TermsFields extends StatefulWidget {
   final ProposalData data;
-  const _TermsStep({required this.data});
+  const _TermsFields({required this.data});
 
   @override
-  State<_TermsStep> createState() => _TermsStepState();
+  State<_TermsFields> createState() => _TermsFieldsState();
 }
 
-class _TermsStepState extends State<_TermsStep> {
+class _TermsFieldsState extends State<_TermsFields> {
   late final _terms = TextEditingController(text: widget.data.termsAndConditions);
 
   @override
@@ -291,19 +279,14 @@ class _TermsStepState extends State<_TermsStep> {
 
   @override
   Widget build(BuildContext context) {
-    final d = widget.data;
-    return ListView(
-      children: [
-        TextFormField(
-          controller: _terms,
-          maxLines: 10,
-          decoration: const InputDecoration(
-            labelText: 'Terms & Conditions',
-            alignLabelWithHint: true,
-          ),
-          onChanged: (v) => d.termsAndConditions = v,
-        ),
-      ],
+    return TextFormField(
+      controller: _terms,
+      maxLines: 10,
+      decoration: const InputDecoration(
+        labelText: 'Terms & Conditions',
+        alignLabelWithHint: true,
+      ),
+      onChanged: (v) => widget.data.termsAndConditions = v,
     );
   }
 }

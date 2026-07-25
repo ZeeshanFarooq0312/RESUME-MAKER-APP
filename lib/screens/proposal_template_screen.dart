@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/sample_documents.dart';
 import '../models/proposal_data.dart';
 import '../theme/app_theme.dart';
 import 'proposal_preview_screen.dart';
@@ -7,7 +8,8 @@ enum ProposalTemplate { classic, modern, minimal }
 
 class ProposalTemplateScreen extends StatelessWidget {
   final ProposalData data;
-  const ProposalTemplateScreen({super.key, required this.data});
+  final String? documentId;
+  const ProposalTemplateScreen({super.key, required this.data, this.documentId});
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +21,7 @@ class ProposalTemplateScreen extends StatelessWidget {
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
+          childAspectRatio: 0.78,
           children: [
             _TemplateCard(
               title: 'Classic',
@@ -45,7 +48,18 @@ class ProposalTemplateScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ProposalPreviewScreen(data: data, template: template),
+        builder: (_) => ProposalPreviewScreen(
+          data: sampleProposalData(),
+          template: template,
+          isSample: true,
+          onUseTemplate: () => Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  ProposalPreviewScreen(data: data, template: template, documentId: documentId),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -113,10 +127,11 @@ class _TemplateCard extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Row(
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleLarge),
-                ],
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.titleLarge,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

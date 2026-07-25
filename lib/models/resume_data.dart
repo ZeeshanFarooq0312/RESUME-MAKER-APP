@@ -154,4 +154,16 @@ class ResumeData {
 
   factory ResumeData.decode(String source) =>
       ResumeData.fromJson(jsonDecode(source));
+
+  /// Weighted completion score shown on the dashboard's document cards.
+  double get completionPercent {
+    var score = 0.0;
+    if (personalInfo.fullName.isNotEmpty) score += 15;
+    if (personalInfo.email.isNotEmpty || personalInfo.phone.isNotEmpty) score += 10;
+    if (personalInfo.summary.isNotEmpty) score += 15;
+    if (experience.isNotEmpty) score += 25;
+    if (education.isNotEmpty) score += 20;
+    if (skills.length >= 3) score += 15;
+    return score.clamp(0, 100);
+  }
 }

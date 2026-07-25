@@ -71,4 +71,19 @@ class CoverLetterData {
 
   factory CoverLetterData.decode(String source) =>
       CoverLetterData.fromJson(jsonDecode(source));
+
+  /// Weighted completion score shown on the dashboard's document cards.
+  double get completionPercent {
+    var score = 0.0;
+    if (fullName.isNotEmpty) score += 10;
+    if (email.isNotEmpty || phone.isNotEmpty) score += 10;
+    if (recipientName.isNotEmpty || companyName.isNotEmpty) score += 20;
+    if (jobTitle.isNotEmpty) score += 15;
+    if (body.trim().length >= 200) {
+      score += 45;
+    } else if (body.trim().isNotEmpty) {
+      score += 20;
+    }
+    return score.clamp(0, 100);
+  }
 }
