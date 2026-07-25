@@ -4,15 +4,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:screen_protector/screen_protector.dart';
 import '../models/document_entry.dart';
 import '../models/proposal_data.dart';
+import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
-import '../pdf/templates/proposal_classic_template.dart';
-import '../pdf/templates/proposal_minimal_template.dart';
-import '../pdf/templates/proposal_modern_template.dart';
 import '../services/documents_repository.dart';
 import '../services/download_credits_service.dart';
 import '../theme/app_theme.dart';
@@ -24,17 +21,6 @@ const _templateTitles = {
   ProposalTemplate.modern: 'Modern Proposal',
   ProposalTemplate.minimal: 'Minimal Proposal',
 };
-
-Future<pw.Document> _buildDoc(ProposalTemplate template, ProposalData data) {
-  switch (template) {
-    case ProposalTemplate.classic:
-      return ProposalClassicTemplate.build(data);
-    case ProposalTemplate.modern:
-      return ProposalModernTemplate.build(data);
-    case ProposalTemplate.minimal:
-      return ProposalMinimalTemplate.build(data);
-  }
-}
 
 class ProposalPreviewScreen extends StatefulWidget {
   final ProposalData data;
@@ -80,7 +66,7 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
     final data = widget.data;
     return Isolate.run(() async {
       PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold);
-      final doc = await _buildDoc(template, data);
+      final doc = await buildProposalDoc(template, data);
       return doc.save();
     });
   }

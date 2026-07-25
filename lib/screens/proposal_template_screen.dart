@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import '../data/sample_documents.dart';
+import '../models/document_entry.dart';
 import '../models/proposal_data.dart';
+import '../models/template_kind.dart';
 import '../theme/app_theme.dart';
+import '../widgets/template_thumbnail.dart';
 import 'proposal_preview_screen.dart';
 
-enum ProposalTemplate { classic, modern, minimal }
+export '../models/template_kind.dart' show ProposalTemplate;
 
 class ProposalTemplateScreen extends StatelessWidget {
   final ProposalData data;
@@ -25,17 +28,17 @@ class ProposalTemplateScreen extends StatelessWidget {
           children: [
             _TemplateCard(
               title: 'Classic',
-              accentColor: AppColors.slate600,
+              template: ProposalTemplate.classic,
               onTap: () => _openPreview(context, ProposalTemplate.classic),
             ),
             _TemplateCard(
               title: 'Modern',
-              accentColor: AppColors.gold,
+              template: ProposalTemplate.modern,
               onTap: () => _openPreview(context, ProposalTemplate.modern),
             ),
             _TemplateCard(
               title: 'Minimal',
-              accentColor: AppColors.slate400,
+              template: ProposalTemplate.minimal,
               onTap: () => _openPreview(context, ProposalTemplate.minimal),
             ),
           ],
@@ -67,10 +70,10 @@ class ProposalTemplateScreen extends StatelessWidget {
 
 class _TemplateCard extends StatelessWidget {
   final String title;
-  final Color accentColor;
+  final ProposalTemplate template;
   final VoidCallback onTap;
 
-  const _TemplateCard({required this.title, required this.accentColor, required this.onTap});
+  const _TemplateCard({required this.title, required this.template, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -92,37 +95,8 @@ class _TemplateCard extends StatelessWidget {
                   color: AppColors.slate100,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 26,
-                      decoration: BoxDecoration(
-                        color: accentColor,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(8),
-                          bottomLeft: Radius.circular(8),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(height: 6, width: 60, color: AppColors.slate400),
-                            const SizedBox(height: 8),
-                            Container(height: 3, width: 40, color: const Color(0xFFD8DCE0)),
-                            const SizedBox(height: 12),
-                            Container(height: 3, width: double.infinity, color: const Color(0xFFE1E4E8)),
-                            const SizedBox(height: 4),
-                            Container(height: 3, width: double.infinity, color: const Color(0xFFE1E4E8)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                clipBehavior: Clip.antiAlias,
+                child: TemplateThumbnail(kind: DocumentKind.proposal, template: template),
               ),
             ),
             Padding(

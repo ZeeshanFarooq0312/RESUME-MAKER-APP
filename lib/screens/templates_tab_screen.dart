@@ -4,6 +4,7 @@ import '../models/document_entry.dart';
 import '../theme/app_theme.dart';
 import '../widgets/filter_chip_row.dart';
 import '../widgets/pill_search_field.dart';
+import '../widgets/template_thumbnail.dart';
 import 'cover_letter_form_screen.dart';
 import 'cover_letter_preview_screen.dart';
 import 'cover_letter_template_screen.dart';
@@ -18,31 +19,25 @@ class _TemplateOption {
   final DocumentKind kind;
   final String title;
   final dynamic template; // ResumeTemplate | CoverLetterTemplate | ProposalTemplate
-  final Color accentColor;
-  const _TemplateOption(this.kind, this.title, this.template, this.accentColor);
+  const _TemplateOption(this.kind, this.title, this.template);
 }
 
 const _allOptions = <_TemplateOption>[
-  _TemplateOption(DocumentKind.resume, 'Classic', ResumeTemplate.classic, AppColors.slate600),
-  _TemplateOption(DocumentKind.resume, 'Modern', ResumeTemplate.modern, AppColors.primary),
-  _TemplateOption(DocumentKind.resume, 'Minimal', ResumeTemplate.minimal, AppColors.slate400),
-  _TemplateOption(
-      DocumentKind.resume, 'Professional', ResumeTemplate.professional, Color(0xFF2C5C8A)),
-  _TemplateOption(DocumentKind.resume, 'Compact', ResumeTemplate.compact, AppColors.slate800),
-  _TemplateOption(DocumentKind.resume, 'Executive', ResumeTemplate.executive, Color(0xFF3A3A3A)),
-  _TemplateOption(DocumentKind.resume, 'Technical', ResumeTemplate.technical, Color(0xFF1F6F54)),
-  _TemplateOption(
-      DocumentKind.resume, 'Simple Bold', ResumeTemplate.simpleBold, Color(0xFFB0413E)),
-  _TemplateOption(DocumentKind.resume, 'Harvard', ResumeTemplate.harvard, AppColors.slate900),
-  _TemplateOption(
-      DocumentKind.coverLetter, 'Classic', CoverLetterTemplate.classic, AppColors.slate600),
-  _TemplateOption(
-      DocumentKind.coverLetter, 'Modern', CoverLetterTemplate.modern, AppColors.primary),
-  _TemplateOption(
-      DocumentKind.coverLetter, 'Minimal', CoverLetterTemplate.minimal, AppColors.slate400),
-  _TemplateOption(DocumentKind.proposal, 'Classic', ProposalTemplate.classic, AppColors.slate600),
-  _TemplateOption(DocumentKind.proposal, 'Modern', ProposalTemplate.modern, AppColors.primary),
-  _TemplateOption(DocumentKind.proposal, 'Minimal', ProposalTemplate.minimal, AppColors.slate400),
+  _TemplateOption(DocumentKind.resume, 'Classic', ResumeTemplate.classic),
+  _TemplateOption(DocumentKind.resume, 'Modern', ResumeTemplate.modern),
+  _TemplateOption(DocumentKind.resume, 'Minimal', ResumeTemplate.minimal),
+  _TemplateOption(DocumentKind.resume, 'Professional', ResumeTemplate.professional),
+  _TemplateOption(DocumentKind.resume, 'Compact', ResumeTemplate.compact),
+  _TemplateOption(DocumentKind.resume, 'Executive', ResumeTemplate.executive),
+  _TemplateOption(DocumentKind.resume, 'Technical', ResumeTemplate.technical),
+  _TemplateOption(DocumentKind.resume, 'Simple Bold', ResumeTemplate.simpleBold),
+  _TemplateOption(DocumentKind.resume, 'Harvard', ResumeTemplate.harvard),
+  _TemplateOption(DocumentKind.coverLetter, 'Classic', CoverLetterTemplate.classic),
+  _TemplateOption(DocumentKind.coverLetter, 'Modern', CoverLetterTemplate.modern),
+  _TemplateOption(DocumentKind.coverLetter, 'Minimal', CoverLetterTemplate.minimal),
+  _TemplateOption(DocumentKind.proposal, 'Classic', ProposalTemplate.classic),
+  _TemplateOption(DocumentKind.proposal, 'Modern', ProposalTemplate.modern),
+  _TemplateOption(DocumentKind.proposal, 'Minimal', ProposalTemplate.minimal),
 ];
 
 class TemplatesTabScreen extends StatefulWidget {
@@ -182,37 +177,8 @@ class _TemplateCard extends StatelessWidget {
                   color: AppColors.slate100,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 26,
-                      decoration: BoxDecoration(
-                        color: option.accentColor,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(8),
-                          bottomLeft: Radius.circular(8),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(height: 6, width: 60, color: AppColors.slate400),
-                            const SizedBox(height: 8),
-                            Container(height: 3, width: 40, color: const Color(0xFFD8DCE0)),
-                            const SizedBox(height: 12),
-                            Container(height: 3, width: double.infinity, color: const Color(0xFFE7E5F3)),
-                            const SizedBox(height: 4),
-                            Container(height: 3, width: double.infinity, color: const Color(0xFFE7E5F3)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                clipBehavior: Clip.antiAlias,
+                child: TemplateThumbnail(kind: option.kind, template: option.template),
               ),
             ),
             Padding(

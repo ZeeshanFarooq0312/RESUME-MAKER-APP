@@ -5,21 +5,12 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_translation/google_mlkit_translation.dart' show TranslateLanguage;
-import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:screen_protector/screen_protector.dart';
 import '../models/document_entry.dart';
 import '../models/resume_data.dart';
+import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
-import '../pdf/templates/classic_template.dart';
-import '../pdf/templates/compact_template.dart';
-import '../pdf/templates/executive_template.dart';
-import '../pdf/templates/harvard_template.dart';
-import '../pdf/templates/minimal_template.dart';
-import '../pdf/templates/modern_template.dart';
-import '../pdf/templates/professional_template.dart';
-import '../pdf/templates/simple_bold_template.dart';
-import '../pdf/templates/technical_template.dart';
 import '../services/documents_repository.dart';
 import '../services/download_credits_service.dart';
 import '../services/translation_service.dart';
@@ -38,29 +29,6 @@ const _templateTitles = {
   ResumeTemplate.simpleBold: 'Simple Bold Resume',
   ResumeTemplate.harvard: 'Harvard Resume',
 };
-
-Future<pw.Document> _buildDoc(ResumeTemplate template, ResumeData data) {
-  switch (template) {
-    case ResumeTemplate.classic:
-      return ClassicTemplate.build(data);
-    case ResumeTemplate.modern:
-      return ModernTemplate.build(data);
-    case ResumeTemplate.minimal:
-      return MinimalTemplate.build(data);
-    case ResumeTemplate.professional:
-      return ProfessionalTemplate.build(data);
-    case ResumeTemplate.compact:
-      return CompactTemplate.build(data);
-    case ResumeTemplate.executive:
-      return ExecutiveTemplate.build(data);
-    case ResumeTemplate.technical:
-      return TechnicalTemplate.build(data);
-    case ResumeTemplate.simpleBold:
-      return SimpleBoldTemplate.build(data);
-    case ResumeTemplate.harvard:
-      return HarvardTemplate.build(data);
-  }
-}
 
 class PreviewScreen extends StatefulWidget {
   final ResumeData resumeData;
@@ -108,7 +76,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
     final template = widget.template;
     return Isolate.run(() async {
       PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold);
-      final doc = await _buildDoc(template, data);
+      final doc = await buildResumeDoc(template, data);
       return doc.save();
     });
   }

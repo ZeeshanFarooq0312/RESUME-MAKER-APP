@@ -1,20 +1,13 @@
 import 'package:flutter/material.dart';
 import '../data/sample_documents.dart';
+import '../models/document_entry.dart';
 import '../models/resume_data.dart';
+import '../models/template_kind.dart';
 import '../theme/app_theme.dart';
+import '../widgets/template_thumbnail.dart';
 import 'preview_screen.dart';
 
-enum ResumeTemplate {
-  classic,
-  modern,
-  minimal,
-  professional,
-  compact,
-  executive,
-  technical,
-  simpleBold,
-  harvard,
-}
+export '../models/template_kind.dart' show ResumeTemplate;
 
 class TemplateScreen extends StatelessWidget {
   final ResumeData resumeData;
@@ -37,63 +30,63 @@ class TemplateScreen extends StatelessWidget {
               title: 'Classic',
               subtitle: 'ATS-friendly',
               isPremium: false,
-              accentColor: AppColors.slate600,
+              template: ResumeTemplate.classic,
               onTap: () => _openPreview(context, ResumeTemplate.classic),
             ),
             _TemplateCard(
               title: 'Modern',
               subtitle: 'Color sidebar + photo',
               isPremium: true,
-              accentColor: AppColors.gold,
+              template: ResumeTemplate.modern,
               onTap: () => _openPreview(context, ResumeTemplate.modern),
             ),
             _TemplateCard(
               title: 'Minimal',
               subtitle: 'ATS-friendly',
               isPremium: false,
-              accentColor: AppColors.slate400,
+              template: ResumeTemplate.minimal,
               onTap: () => _openPreview(context, ResumeTemplate.minimal),
             ),
             _TemplateCard(
               title: 'Professional',
               subtitle: 'ATS-friendly',
               isPremium: false,
-              accentColor: const Color(0xFF2C5C8A),
+              template: ResumeTemplate.professional,
               onTap: () => _openPreview(context, ResumeTemplate.professional),
             ),
             _TemplateCard(
               title: 'Compact',
               subtitle: 'ATS-friendly',
               isPremium: false,
-              accentColor: AppColors.slate800,
+              template: ResumeTemplate.compact,
               onTap: () => _openPreview(context, ResumeTemplate.compact),
             ),
             _TemplateCard(
               title: 'Executive',
               subtitle: 'ATS-friendly',
               isPremium: false,
-              accentColor: const Color(0xFF3A3A3A),
+              template: ResumeTemplate.executive,
               onTap: () => _openPreview(context, ResumeTemplate.executive),
             ),
             _TemplateCard(
               title: 'Technical',
               subtitle: 'ATS-friendly',
               isPremium: false,
-              accentColor: const Color(0xFF1F6F54),
+              template: ResumeTemplate.technical,
               onTap: () => _openPreview(context, ResumeTemplate.technical),
             ),
             _TemplateCard(
               title: 'Simple Bold',
               subtitle: 'ATS-friendly',
               isPremium: false,
-              accentColor: const Color(0xFFB0413E),
+              template: ResumeTemplate.simpleBold,
               onTap: () => _openPreview(context, ResumeTemplate.simpleBold),
             ),
             _TemplateCard(
               title: 'Harvard',
               subtitle: 'ATS-friendly',
               isPremium: false,
-              accentColor: AppColors.slate900,
+              template: ResumeTemplate.harvard,
               onTap: () => _openPreview(context, ResumeTemplate.harvard),
             ),
           ],
@@ -127,14 +120,14 @@ class _TemplateCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool isPremium;
-  final Color accentColor;
+  final ResumeTemplate template;
   final VoidCallback onTap;
 
   const _TemplateCard({
     required this.title,
     required this.subtitle,
     required this.isPremium,
-    required this.accentColor,
+    required this.template,
     required this.onTap,
   });
 
@@ -158,37 +151,8 @@ class _TemplateCard extends StatelessWidget {
                   color: AppColors.slate100,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 26,
-                      decoration: BoxDecoration(
-                        color: accentColor,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(8),
-                          bottomLeft: Radius.circular(8),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(height: 6, width: 60, color: AppColors.slate400),
-                            const SizedBox(height: 8),
-                            Container(height: 3, width: 40, color: const Color(0xFFD8DCE0)),
-                            const SizedBox(height: 12),
-                            Container(height: 3, width: double.infinity, color: const Color(0xFFE1E4E8)),
-                            const SizedBox(height: 4),
-                            Container(height: 3, width: double.infinity, color: const Color(0xFFE1E4E8)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                clipBehavior: Clip.antiAlias,
+                child: TemplateThumbnail(kind: DocumentKind.resume, template: template),
               ),
             ),
             Padding(

@@ -4,15 +4,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:screen_protector/screen_protector.dart';
 import '../models/cover_letter_data.dart';
 import '../models/document_entry.dart';
+import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
-import '../pdf/templates/cover_letter_classic_template.dart';
-import '../pdf/templates/cover_letter_minimal_template.dart';
-import '../pdf/templates/cover_letter_modern_template.dart';
 import '../services/documents_repository.dart';
 import '../services/download_credits_service.dart';
 import '../theme/app_theme.dart';
@@ -24,17 +21,6 @@ const _templateTitles = {
   CoverLetterTemplate.modern: 'Modern Cover Letter',
   CoverLetterTemplate.minimal: 'Minimal Cover Letter',
 };
-
-Future<pw.Document> _buildDoc(CoverLetterTemplate template, CoverLetterData data) {
-  switch (template) {
-    case CoverLetterTemplate.classic:
-      return CoverLetterClassicTemplate.build(data);
-    case CoverLetterTemplate.modern:
-      return CoverLetterModernTemplate.build(data);
-    case CoverLetterTemplate.minimal:
-      return CoverLetterMinimalTemplate.build(data);
-  }
-}
 
 class CoverLetterPreviewScreen extends StatefulWidget {
   final CoverLetterData data;
@@ -80,7 +66,7 @@ class _CoverLetterPreviewScreenState extends State<CoverLetterPreviewScreen> {
     final data = widget.data;
     return Isolate.run(() async {
       PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold);
-      final doc = await _buildDoc(template, data);
+      final doc = await buildCoverLetterDoc(template, data);
       return doc.save();
     });
   }
