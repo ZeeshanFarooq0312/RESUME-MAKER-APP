@@ -1,6 +1,10 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:screen_protector/screen_protector.dart';
 import '../models/resume_data.dart';
 import '../pdf/templates/classic_template.dart';
 import '../pdf/templates/compact_template.dart';
@@ -69,6 +73,24 @@ class _PreviewScreenState extends State<PreviewScreen> {
   void initState() {
     super.initState();
     _refreshCredits();
+    _setScreenshotBlocking(true);
+  }
+
+  @override
+  void dispose() {
+    _setScreenshotBlocking(false);
+    super.dispose();
+  }
+
+  // screen_protector only ships native support for Android/iOS; calling it
+  // on desktop/web platforms would throw a MissingPluginException.
+  void _setScreenshotBlocking(bool enabled) {
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return;
+    if (enabled) {
+      ScreenProtector.preventScreenshotOn();
+    } else {
+      ScreenProtector.preventScreenshotOff();
+    }
   }
 
   Future<void> _refreshCredits() async {

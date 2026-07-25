@@ -15,7 +15,7 @@ class ResumeTextParser {
     caseSensitive: false,
   );
   static final _locationRegex = RegExp(r'^[A-Za-z][A-Za-z .]*,\s*[A-Za-z][A-Za-z .]*$');
-  static final _bulletPrefixRegex = RegExp(r'^[•\-*▪◦]\s*');
+  static final _bulletPrefixRegex = RegExp(r'^[•●○◦▪▫∙·‣⁃∗\-*]\s*');
 
   static const _summaryHeaders = {
     'summary', 'profile', 'objective', 'about', 'about me',
@@ -35,7 +35,10 @@ class ResumeTextParser {
   };
 
   static ResumeData parse(String rawText) {
-    final lines = rawText.split('\n').map((l) => l.trim()).toList();
+    final lines = rawText
+        .split('\n')
+        .map((l) => l.trim().replaceFirst(_bulletPrefixRegex, '').trim())
+        .toList();
     final data = ResumeData();
 
     var firstSectionIdx = lines.length;
@@ -187,7 +190,7 @@ class ResumeTextParser {
       final descEnd = (a + 1 < anchors.length) ? anchors[a + 1] : block.length;
       final descLines = [
         for (var j = descStart; j < descEnd; j++)
-          if (block[j].isNotEmpty) block[j].replaceFirst(_bulletPrefixRegex, ''),
+          if (block[j].isNotEmpty) block[j],
       ];
 
       entries.add(ExperienceEntry(

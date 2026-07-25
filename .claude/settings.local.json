@@ -17,7 +17,8 @@
       "Bash(flutter run *)",
       "Bash(./gradlew --stop)",
       "Bash(find C:/Users/ZeshanFarooq/AppData/Local/Pub/Cache/hosted/pub.dev/file_picker-11.0.2/android/src/main -iname *.kt -o -iname *.java)",
-      "Bash(flutter --version)"
+      "Bash(flutter --version)",
+      "Bash(dart analyze *)"
     ]
   }
 }
