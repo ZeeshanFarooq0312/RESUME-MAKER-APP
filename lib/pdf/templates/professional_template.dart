@@ -29,7 +29,7 @@ class ProfessionalTemplate {
                   if (info.jobTitle.isNotEmpty) ...[
                     pw.SizedBox(height: 3),
                     pw.Text(info.jobTitle,
-                        style: pw.TextStyle(fontSize: 11.5, color: _accent)),
+                        style: const pw.TextStyle(fontSize: 11.5, color: _accent)),
                   ],
                   pw.SizedBox(height: 6),
                   pw.Text(
@@ -68,7 +68,7 @@ class ProfessionalTemplate {
                         ),
                         if (e.company.isNotEmpty)
                           pw.Text(e.company,
-                              style: pw.TextStyle(
+                              style: const pw.TextStyle(
                                   fontSize: 10, color: _accent, fontWeight: pw.FontWeight.bold)),
                         if (e.description.isNotEmpty) ...[
                           pw.SizedBox(height: 4),
@@ -119,7 +119,7 @@ class ProfessionalTemplate {
         padding: const pw.EdgeInsets.only(bottom: 6),
         child: pw.Text(
           text.toUpperCase(),
-          style: pw.TextStyle(
+          style: const pw.TextStyle(
             fontSize: 10.5,
             fontWeight: pw.FontWeight.bold,
             color: _accent,

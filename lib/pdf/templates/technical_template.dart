@@ -25,7 +25,7 @@ class TechnicalTemplate {
             ),
             if (info.jobTitle.isNotEmpty)
               pw.Text(info.jobTitle,
-                  style: pw.TextStyle(fontSize: 11, color: _accent, fontWeight: pw.FontWeight.bold)),
+                  style: const pw.TextStyle(fontSize: 11, color: _accent, fontWeight: pw.FontWeight.bold)),
             pw.SizedBox(height: 5),
             pw.Text(
               [info.email, info.phone, info.location]
@@ -115,7 +115,7 @@ class TechnicalTemplate {
         padding: const pw.EdgeInsets.only(bottom: 6),
         child: pw.Text(
           text.toUpperCase(),
-          style: pw.TextStyle(
+          style: const pw.TextStyle(
             fontSize: 10.5,
             fontWeight: pw.FontWeight.bold,
             color: _accent,

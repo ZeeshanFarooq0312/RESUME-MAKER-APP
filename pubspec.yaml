@@ -19,6 +19,7 @@ dependencies:
   read_pdf_text: ^0.3.1
   image_picker: ^1.1.2
   screen_protector: ^1.5.3
+  google_mlkit_translation: ^0.14.0
 
 dev_dependencies:
   flutter_test:

@@ -73,10 +73,10 @@ class _FormScreenState extends State<FormScreen> {
                 child: IndexedStack(
                   index: _step,
                   children: [
-                    _PersonalInfoStep(data: data, onChanged: () => setState(() {})),
-                    _ExperienceStep(data: data, onChanged: () => setState(() {})),
-                    _EducationStep(data: data, onChanged: () => setState(() {})),
-                    _SkillsStep(data: data, onChanged: () => setState(() {})),
+                    _PersonalInfoStep(data: data),
+                    _ExperienceStep(data: data),
+                    _EducationStep(data: data),
+                    _SkillsStep(data: data),
                   ],
                 ),
               ),
@@ -127,10 +127,35 @@ class _ProgressBar extends StatelessWidget {
 }
 
 // ---------- Step 1: Personal Info ----------
-class _PersonalInfoStep extends StatelessWidget {
+// StatefulWidget so each keystroke only rebuilds this step's own subtree
+// (via the field's local TextEditingController) instead of bubbling a
+// setState up to FormScreen, which would rebuild every step in the
+// IndexedStack on every character typed.
+class _PersonalInfoStep extends StatefulWidget {
   final ResumeData data;
-  final VoidCallback onChanged;
-  const _PersonalInfoStep({required this.data, required this.onChanged});
+  const _PersonalInfoStep({required this.data});
+
+  @override
+  State<_PersonalInfoStep> createState() => _PersonalInfoStepState();
+}
+
+class _PersonalInfoStepState extends State<_PersonalInfoStep> {
+  late final _controllers = <String, TextEditingController>{
+    'fullName': TextEditingController(text: widget.data.personalInfo.fullName),
+    'jobTitle': TextEditingController(text: widget.data.personalInfo.jobTitle),
+    'email': TextEditingController(text: widget.data.personalInfo.email),
+    'phone': TextEditingController(text: widget.data.personalInfo.phone),
+    'location': TextEditingController(text: widget.data.personalInfo.location),
+    'summary': TextEditingController(text: widget.data.personalInfo.summary),
+  };
+
+  @override
+  void dispose() {
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   Future<void> _pickPhoto() async {
     final picked = await ImagePicker().pickImage(
@@ -141,18 +166,16 @@ class _PersonalInfoStep extends StatelessWidget {
     );
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
-    data.personalInfo.photoBase64 = base64Encode(bytes);
-    onChanged();
+    setState(() => widget.data.personalInfo.photoBase64 = base64Encode(bytes));
   }
 
   void _removePhoto() {
-    data.personalInfo.photoBase64 = '';
-    onChanged();
+    setState(() => widget.data.personalInfo.photoBase64 = '');
   }
 
   @override
   Widget build(BuildContext context) {
-    final info = data.personalInfo;
+    final info = widget.data.personalInfo;
     return ListView(
       children: [
         Center(
@@ -163,21 +186,21 @@ class _PersonalInfoStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        _field('Full Name', info.fullName, (v) { info.fullName = v; onChanged(); }),
-        _field('Job Title', info.jobTitle, (v) { info.jobTitle = v; onChanged(); }),
-        _field('Email', info.email, (v) { info.email = v; onChanged(); }),
-        _field('Phone', info.phone, (v) { info.phone = v; onChanged(); }),
-        _field('Location', info.location, (v) { info.location = v; onChanged(); }),
-        _field('Professional Summary', info.summary, (v) { info.summary = v; onChanged(); }, maxLines: 4),
+        _field('Full Name', _controllers['fullName']!, (v) => info.fullName = v),
+        _field('Job Title', _controllers['jobTitle']!, (v) => info.jobTitle = v),
+        _field('Email', _controllers['email']!, (v) => info.email = v),
+        _field('Phone', _controllers['phone']!, (v) => info.phone = v),
+        _field('Location', _controllers['location']!, (v) => info.location = v),
+        _field('Professional Summary', _controllers['summary']!, (v) => info.summary = v, maxLines: 4),
       ],
     );
   }
 
-  Widget _field(String label, String initial, Function(String) onSave, {int maxLines = 1}) {
+  Widget _field(String label, TextEditingController controller, Function(String) onSave, {int maxLines = 1}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
-        initialValue: initial,
+        controller: controller,
         maxLines: maxLines,
         decoration: InputDecoration(labelText: label),
         onChanged: onSave,
@@ -241,29 +264,29 @@ class _PhotoPicker extends StatelessWidget {
 }
 
 // ---------- Step 2: Experience ----------
-class _ExperienceStep extends StatelessWidget {
+// StatefulWidget only to own the add/delete rebuild locally; typing inside
+// a card never reaches this widget (see _ExperienceCard).
+class _ExperienceStep extends StatefulWidget {
   final ResumeData data;
-  final VoidCallback onChanged;
-  const _ExperienceStep({required this.data, required this.onChanged});
+  const _ExperienceStep({required this.data});
 
+  @override
+  State<_ExperienceStep> createState() => _ExperienceStepState();
+}
+
+class _ExperienceStepState extends State<_ExperienceStep> {
   @override
   Widget build(BuildContext context) {
     return ListView(
       children: [
-        ...data.experience.map((e) => _ExperienceCard(
+        ...widget.data.experience.map((e) => _ExperienceCard(
+              key: ValueKey(e.id),
               entry: e,
-              onChanged: onChanged,
-              onDelete: () {
-                data.experience.remove(e);
-                onChanged();
-              },
+              onDelete: () => setState(() => widget.data.experience.remove(e)),
             )),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: () {
-            data.experience.add(ExperienceEntry());
-            onChanged();
-          },
+          onPressed: () => setState(() => widget.data.experience.add(ExperienceEntry())),
           icon: const Icon(Icons.add, size: 18),
           label: const Text('Add Work Experience'),
         ),
@@ -272,14 +295,35 @@ class _ExperienceStep extends StatelessWidget {
   }
 }
 
-class _ExperienceCard extends StatelessWidget {
+class _ExperienceCard extends StatefulWidget {
   final ExperienceEntry entry;
-  final VoidCallback onChanged;
   final VoidCallback onDelete;
-  const _ExperienceCard({required this.entry, required this.onChanged, required this.onDelete});
+  const _ExperienceCard({super.key, required this.entry, required this.onDelete});
+
+  @override
+  State<_ExperienceCard> createState() => _ExperienceCardState();
+}
+
+class _ExperienceCardState extends State<_ExperienceCard> {
+  late final _role = TextEditingController(text: widget.entry.role);
+  late final _company = TextEditingController(text: widget.entry.company);
+  late final _startDate = TextEditingController(text: widget.entry.startDate);
+  late final _endDate = TextEditingController(text: widget.entry.endDate);
+  late final _description = TextEditingController(text: widget.entry.description);
+
+  @override
+  void dispose() {
+    _role.dispose();
+    _company.dispose();
+    _startDate.dispose();
+    _endDate.dispose();
+    _description.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -295,47 +339,47 @@ class _ExperienceCard extends StatelessWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: AppColors.slate400, size: 20),
-                onPressed: onDelete,
+                onPressed: widget.onDelete,
               ),
             ],
           ),
           TextFormField(
-            initialValue: entry.role,
+            controller: _role,
             decoration: const InputDecoration(labelText: 'Job Title'),
-            onChanged: (v) { entry.role = v; onChanged(); },
+            onChanged: (v) => entry.role = v,
           ),
           const SizedBox(height: 12),
           TextFormField(
-            initialValue: entry.company,
+            controller: _company,
             decoration: const InputDecoration(labelText: 'Company'),
-            onChanged: (v) { entry.company = v; onChanged(); },
+            onChanged: (v) => entry.company = v,
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: TextFormField(
-                  initialValue: entry.startDate,
+                  controller: _startDate,
                   decoration: const InputDecoration(labelText: 'Start (e.g. Jan 2022)'),
-                  onChanged: (v) { entry.startDate = v; onChanged(); },
+                  onChanged: (v) => entry.startDate = v,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: TextFormField(
-                  initialValue: entry.endDate,
+                  controller: _endDate,
                   decoration: const InputDecoration(labelText: 'End (or Present)'),
-                  onChanged: (v) { entry.endDate = v; onChanged(); },
+                  onChanged: (v) => entry.endDate = v,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           TextFormField(
-            initialValue: entry.description,
+            controller: _description,
             maxLines: 3,
             decoration: const InputDecoration(labelText: 'Key Responsibilities / Achievements'),
-            onChanged: (v) { entry.description = v; onChanged(); },
+            onChanged: (v) => entry.description = v,
           ),
         ],
       ),
@@ -344,29 +388,27 @@ class _ExperienceCard extends StatelessWidget {
 }
 
 // ---------- Step 3: Education ----------
-class _EducationStep extends StatelessWidget {
+class _EducationStep extends StatefulWidget {
   final ResumeData data;
-  final VoidCallback onChanged;
-  const _EducationStep({required this.data, required this.onChanged});
+  const _EducationStep({required this.data});
 
+  @override
+  State<_EducationStep> createState() => _EducationStepState();
+}
+
+class _EducationStepState extends State<_EducationStep> {
   @override
   Widget build(BuildContext context) {
     return ListView(
       children: [
-        ...data.education.map((e) => _EducationCard(
+        ...widget.data.education.map((e) => _EducationCard(
+              key: ValueKey(e.id),
               entry: e,
-              onChanged: onChanged,
-              onDelete: () {
-                data.education.remove(e);
-                onChanged();
-              },
+              onDelete: () => setState(() => widget.data.education.remove(e)),
             )),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: () {
-            data.education.add(EducationEntry());
-            onChanged();
-          },
+          onPressed: () => setState(() => widget.data.education.add(EducationEntry())),
           icon: const Icon(Icons.add, size: 18),
           label: const Text('Add Education'),
         ),
@@ -375,14 +417,33 @@ class _EducationStep extends StatelessWidget {
   }
 }
 
-class _EducationCard extends StatelessWidget {
+class _EducationCard extends StatefulWidget {
   final EducationEntry entry;
-  final VoidCallback onChanged;
   final VoidCallback onDelete;
-  const _EducationCard({required this.entry, required this.onChanged, required this.onDelete});
+  const _EducationCard({super.key, required this.entry, required this.onDelete});
+
+  @override
+  State<_EducationCard> createState() => _EducationCardState();
+}
+
+class _EducationCardState extends State<_EducationCard> {
+  late final _degree = TextEditingController(text: widget.entry.degree);
+  late final _school = TextEditingController(text: widget.entry.school);
+  late final _startDate = TextEditingController(text: widget.entry.startDate);
+  late final _endDate = TextEditingController(text: widget.entry.endDate);
+
+  @override
+  void dispose() {
+    _degree.dispose();
+    _school.dispose();
+    _startDate.dispose();
+    _endDate.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -398,37 +459,37 @@ class _EducationCard extends StatelessWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: AppColors.slate400, size: 20),
-                onPressed: onDelete,
+                onPressed: widget.onDelete,
               ),
             ],
           ),
           TextFormField(
-            initialValue: entry.degree,
+            controller: _degree,
             decoration: const InputDecoration(labelText: 'Degree / Program'),
-            onChanged: (v) { entry.degree = v; onChanged(); },
+            onChanged: (v) => entry.degree = v,
           ),
           const SizedBox(height: 12),
           TextFormField(
-            initialValue: entry.school,
+            controller: _school,
             decoration: const InputDecoration(labelText: 'School / University'),
-            onChanged: (v) { entry.school = v; onChanged(); },
+            onChanged: (v) => entry.school = v,
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: TextFormField(
-                  initialValue: entry.startDate,
+                  controller: _startDate,
                   decoration: const InputDecoration(labelText: 'Start Year'),
-                  onChanged: (v) { entry.startDate = v; onChanged(); },
+                  onChanged: (v) => entry.startDate = v,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: TextFormField(
-                  initialValue: entry.endDate,
+                  controller: _endDate,
                   decoration: const InputDecoration(labelText: 'End Year'),
-                  onChanged: (v) { entry.endDate = v; onChanged(); },
+                  onChanged: (v) => entry.endDate = v,
                 ),
               ),
             ],
@@ -442,8 +503,7 @@ class _EducationCard extends StatelessWidget {
 // ---------- Step 4: Skills ----------
 class _SkillsStep extends StatefulWidget {
   final ResumeData data;
-  final VoidCallback onChanged;
-  const _SkillsStep({required this.data, required this.onChanged});
+  const _SkillsStep({required this.data});
 
   @override
   State<_SkillsStep> createState() => _SkillsStepState();
@@ -459,7 +519,6 @@ class _SkillsStepState extends State<_SkillsStep> {
         widget.data.skills.add(text);
       });
       _fieldController?.clear();
-      widget.onChanged();
     }
   }
 
@@ -537,7 +596,6 @@ class _SkillsStepState extends State<_SkillsStep> {
                         deleteIcon: const Icon(Icons.close, size: 16),
                         onDeleted: () {
                           setState(() => widget.data.skills.remove(s));
-                          widget.onChanged();
                         },
                       ))
                   .toList(),

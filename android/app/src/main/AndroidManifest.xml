@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Used only to download an on-device translation language pack the
+         first time a given language is selected on the resume preview
+         screen (see TranslationService); translation itself then runs
+         fully offline. No other network use in this app. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="resume_app"
         android:name="${applicationName}"

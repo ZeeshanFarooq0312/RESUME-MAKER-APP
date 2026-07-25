@@ -8,7 +8,6 @@ import '../pdf_fonts.dart';
 class ModernTemplate {
   static const _navy = PdfColor.fromInt(0xFF1B2430);
   static const _gold = PdfColor.fromInt(0xFFC79A4B);
-  static const _lightGrey = PdfColor.fromInt(0xFFF4F5F6);
 
   static Future<pw.Document> build(ResumeData data) async {
     final doc = pw.Document(theme: await PdfFonts.theme());
@@ -55,7 +54,7 @@ class ModernTemplate {
                   pw.SizedBox(height: 4),
                   if (info.jobTitle.isNotEmpty)
                     pw.Text(info.jobTitle,
-                        style: pw.TextStyle(color: _gold, fontSize: 11)),
+                        style: const pw.TextStyle(color: _gold, fontSize: 11)),
                   pw.SizedBox(height: 18),
                   _sidebarHeading('CONTACT'),
                   pw.SizedBox(height: 6),
@@ -88,7 +87,7 @@ class ModernTemplate {
                                       fontSize: 9.5,
                                       fontWeight: pw.FontWeight.bold)),
                               pw.Text(e.school,
-                                  style: pw.TextStyle(
+                                  style: const pw.TextStyle(
                                       color: _gold, fontSize: 9)),
                               pw.Text('${e.startDate} - ${e.endDate}',
                                   style: const pw.TextStyle(
@@ -120,7 +119,7 @@ class ModernTemplate {
                       ...data.experience.map((e) => pw.Container(
                             margin: const pw.EdgeInsets.only(bottom: 12),
                             padding: const pw.EdgeInsets.only(left: 10),
-                            decoration: pw.BoxDecoration(
+                            decoration: const pw.BoxDecoration(
                               border: pw.Border(
                                 left: pw.BorderSide(color: _gold, width: 2),
                               ),
@@ -158,7 +157,7 @@ class ModernTemplate {
 
   static pw.Widget _sidebarHeading(String text) => pw.Text(
         text,
-        style: pw.TextStyle(
+        style: const pw.TextStyle(
           color: _gold,
           fontSize: 10,
           fontWeight: pw.FontWeight.bold,
@@ -174,7 +173,7 @@ class ModernTemplate {
 
   static pw.Widget _mainHeading(String text) => pw.Text(
         text,
-        style: pw.TextStyle(
+        style: const pw.TextStyle(
           color: _navy,
           fontSize: 12,
           fontWeight: pw.FontWeight.bold,

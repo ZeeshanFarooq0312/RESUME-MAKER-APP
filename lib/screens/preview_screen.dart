@@ -1,11 +1,15 @@
 import 'dart:io' show Platform;
+import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:google_mlkit_translation/google_mlkit_translation.dart' show TranslateLanguage;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:screen_protector/screen_protector.dart';
 import '../models/resume_data.dart';
+import '../pdf/pdf_fonts.dart';
 import '../pdf/templates/classic_template.dart';
 import '../pdf/templates/compact_template.dart';
 import '../pdf/templates/executive_template.dart';
@@ -16,6 +20,7 @@ import '../pdf/templates/professional_template.dart';
 import '../pdf/templates/simple_bold_template.dart';
 import '../pdf/templates/technical_template.dart';
 import '../services/download_credits_service.dart';
+import '../services/translation_service.dart';
 import '../theme/app_theme.dart';
 import 'paywall_sheet.dart';
 import 'template_screen.dart';
@@ -68,12 +73,131 @@ class PreviewScreen extends StatefulWidget {
 class _PreviewScreenState extends State<PreviewScreen> {
   int _credits = 0;
   bool _downloading = false;
+  TranslateLanguage? _translatedLanguage;
+  late Future<Uint8List> _pdfFuture;
 
   @override
   void initState() {
     super.initState();
     _refreshCredits();
     _setScreenshotBlocking(true);
+    _pdfFuture = _generatePdf(widget.resumeData);
+  }
+
+  // Building a pw.Document + serializing it is real synchronous CPU work.
+  // Running it on the main isolate visibly stutters the page-transition
+  // frame right as this screen appears. Isolate.run offloads it — but a
+  // background isolate has no Flutter bindings, so PdfFonts.theme()'s
+  // rootBundle.load would throw there. Loading the font bytes here (on this
+  // isolate, where bindings exist) and priming the isolate's own PdfFonts
+  // cache from those bytes avoids touching rootBundle inside the isolate.
+  Future<Uint8List> _generatePdf(ResumeData data) async {
+    final fontBytes = await PdfFonts.loadBytes();
+    final template = widget.template;
+    return Isolate.run(() async {
+      PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold);
+      final doc = await _buildDoc(template, data);
+      return doc.save();
+    });
+  }
+
+  // google_mlkit_translation only ships native support for Android/iOS.
+  bool get _translationSupported => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+  Future<void> _openTranslateSheet() async {
+    if (!_translationSupported) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Translation is available on Android and iOS.'),
+      ));
+      return;
+    }
+    final language = await showModalBottomSheet<TranslateLanguage>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _LanguagePickerSheet(),
+    );
+    if (language == null || !mounted) return;
+    await _translateTo(language);
+  }
+
+  Future<void> _translateTo(TranslateLanguage language) async {
+    final ready = await TranslationService.areModelsReady(language);
+    if (!ready) {
+      if (!mounted) return;
+      final proceed = await _confirmDownload(language);
+      if (proceed != true) return;
+    }
+    if (!mounted) return;
+
+    _showProgressDialog('Preparing ${TranslationService.labelFor(language)} translation…');
+    try {
+      await TranslationService.ensureModelsReady(language);
+      final translated = await TranslationService.translateResumeData(widget.resumeData, language);
+      if (!mounted) return;
+      setState(() {
+        _translatedLanguage = language;
+        _pdfFuture = _generatePdf(translated);
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Couldn't translate — check your internet connection and try again."),
+        ));
+      }
+    } finally {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    }
+  }
+
+  Future<bool?> _confirmDownload(TranslateLanguage language) {
+    final label = TranslationService.labelFor(language);
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Download language pack?'),
+        content: Text(
+          'Translating to $label needs a one-time download (requires Wi-Fi) the first '
+          'time. After that, translation runs fully on your device — no internet needed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Download'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showProgressDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 16),
+            Expanded(child: Text(message)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _revertTranslation() {
+    setState(() {
+      _translatedLanguage = null;
+      _pdfFuture = _generatePdf(widget.resumeData);
+    });
   }
 
   @override
@@ -112,8 +236,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
     try {
       final spent = await DownloadCreditsService.consumeCredit();
       if (!spent) return; // race with another download; bail safely
-      final doc = await _buildDoc(widget.template, widget.resumeData);
-      final bytes = await doc.save();
+      final bytes = await _pdfFuture;
       await Printing.sharePdf(bytes: bytes, filename: _fileName);
     } finally {
       if (mounted) {
@@ -128,15 +251,49 @@ class _PreviewScreenState extends State<PreviewScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_templateTitles[widget.template]!),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.translate),
+            tooltip: 'Translate',
+            onPressed: _openTranslateSheet,
+          ),
+        ],
       ),
       body: Column(
         children: [
+          Container(
+            width: double.infinity,
+            color: AppColors.slate600.withValues(alpha: 0.06),
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: const Text(
+              'Double-tap or pinch to zoom in for details',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.slate600, fontSize: 12),
+            ),
+          ),
+          if (_translatedLanguage != null)
+            Container(
+              width: double.infinity,
+              color: AppColors.goldLight.withValues(alpha: 0.35),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Translated to ${TranslationService.labelFor(_translatedLanguage!)}',
+                      style: const TextStyle(color: AppColors.slate900, fontSize: 12.5),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _revertTranslation,
+                    child: const Text('Revert', style: TextStyle(fontSize: 12.5)),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: PdfPreview(
-              build: (format) async {
-                final doc = await _buildDoc(widget.template, widget.resumeData);
-                return doc.save();
-              },
+              build: (format) => _pdfFuture,
               allowPrinting: false,
               allowSharing: false,
               canChangePageFormat: false,
@@ -179,6 +336,78 @@ class _PreviewScreenState extends State<PreviewScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LanguagePickerSheet extends StatefulWidget {
+  const _LanguagePickerSheet();
+
+  @override
+  State<_LanguagePickerSheet> createState() => _LanguagePickerSheetState();
+}
+
+class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
+  final _query = TextEditingController();
+  String _q = '';
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final languages = TranslationService.supportedLanguages
+        .where((l) => TranslationService.labelFor(l).toLowerCase().contains(_q.toLowerCase()))
+        .toList();
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Translate Resume', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 4),
+            const Text(
+              'Latin-script languages only for now — Arabic, Hindi, Chinese and similar '
+              'scripts aren\'t supported yet.',
+              style: TextStyle(color: AppColors.slate600, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _query,
+              decoration: const InputDecoration(
+                hintText: 'Search languages',
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (v) => setState(() => _q = v),
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: languages.length,
+                itemBuilder: (context, i) {
+                  final lang = languages[i];
+                  return ListTile(
+                    title: Text(TranslationService.labelFor(lang)),
+                    onTap: () => Navigator.pop(context, lang),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
