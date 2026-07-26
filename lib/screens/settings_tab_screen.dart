@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/download_credits_service.dart';
 import '../theme/app_theme.dart';
-import 'paywall_sheet.dart';
 
 class SettingsTabScreen extends StatefulWidget {
   const SettingsTabScreen({super.key});
@@ -12,24 +10,6 @@ class SettingsTabScreen extends StatefulWidget {
 }
 
 class _SettingsTabScreenState extends State<SettingsTabScreen> {
-  int _credits = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _refreshCredits();
-  }
-
-  Future<void> _refreshCredits() async {
-    final credits = await DownloadCreditsService.getCredits();
-    if (mounted) setState(() => _credits = credits);
-  }
-
-  Future<void> _unlock() async {
-    final unlocked = await showPaywallSheet(context);
-    if (unlocked == true) _refreshCredits();
-  }
-
   Future<void> _clearAllData() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -53,7 +33,6 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     if (mounted) {
-      _refreshCredits();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('All data cleared.')),
       );
@@ -87,22 +66,21 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
                     child: const Icon(Icons.download_outlined, color: AppColors.primary),
                   ),
                   const SizedBox(width: 14),
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '$_credits download${_credits == 1 ? '' : 's'} available',
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5),
+                          'Unlimited downloads',
+                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5),
                         ),
-                        const Text(
-                          'Previews are always free',
+                        Text(
+                          'Every feature in this app is completely free',
                           style: TextStyle(color: AppColors.slate600, fontSize: 12),
                         ),
                       ],
                     ),
                   ),
-                  ElevatedButton(onPressed: _unlock, child: const Text('Unlock')),
                 ],
               ),
             ),

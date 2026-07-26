@@ -11,10 +11,8 @@ import '../models/document_entry.dart';
 import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
 import '../services/documents_repository.dart';
-import '../services/download_credits_service.dart';
 import '../theme/app_theme.dart';
 import 'cover_letter_template_screen.dart';
-import 'paywall_sheet.dart';
 
 const _templateTitles = {
   CoverLetterTemplate.classic: 'Classic Cover Letter',
@@ -43,14 +41,12 @@ class CoverLetterPreviewScreen extends StatefulWidget {
 }
 
 class _CoverLetterPreviewScreenState extends State<CoverLetterPreviewScreen> {
-  int _credits = 0;
   bool _downloading = false;
   late final Future<Uint8List> _pdfFuture = _generatePdf();
 
   @override
   void initState() {
     super.initState();
-    _refreshCredits();
     _setScreenshotBlocking(true);
   }
 
@@ -80,11 +76,6 @@ class _CoverLetterPreviewScreenState extends State<CoverLetterPreviewScreen> {
     }
   }
 
-  Future<void> _refreshCredits() async {
-    final credits = await DownloadCreditsService.getCredits();
-    if (mounted) setState(() => _credits = credits);
-  }
-
   String get _fileName =>
       '${widget.data.fullName.isEmpty ? "cover_letter" : "${widget.data.fullName.replaceAll(" ", "_")}_cover_letter"}.pdf';
 
@@ -108,24 +99,13 @@ class _CoverLetterPreviewScreenState extends State<CoverLetterPreviewScreen> {
   }
 
   Future<void> _onDownloadPressed() async {
-    if (_credits <= 0) {
-      final unlocked = await showPaywallSheet(context);
-      if (unlocked != true) return;
-      await _refreshCredits();
-    }
-
     setState(() => _downloading = true);
     try {
-      final spent = await DownloadCreditsService.consumeCredit();
-      if (!spent) return;
       final bytes = await _pdfFuture;
       await Printing.sharePdf(bytes: bytes, filename: _fileName);
       await _touchDocumentEntry();
     } finally {
-      if (mounted) {
-        setState(() => _downloading = false);
-        await _refreshCredits();
-      }
+      if (mounted) setState(() => _downloading = false);
     }
   }
 
@@ -175,30 +155,20 @@ class _CoverLetterPreviewScreenState extends State<CoverLetterPreviewScreen> {
                         child: const Text('Use This Template'),
                       ),
                     )
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _credits > 0
-                                ? '$_credits download${_credits == 1 ? '' : 's'} available'
-                                : 'Preview is free — \$3 unlocks 2 downloads',
-                            style: const TextStyle(color: AppColors.slate600, fontSize: 12.5),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          onPressed: _downloading ? null : _onDownloadPressed,
-                          icon: _downloading
-                              ? const SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                )
-                              : Icon(_credits > 0 ? Icons.download : Icons.lock_outline, size: 18),
-                          label: Text(_credits > 0 ? 'Download PDF' : 'Unlock & Download'),
-                        ),
-                      ],
+                  : SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _downloading ? null : _onDownloadPressed,
+                        icon: _downloading
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.download, size: 18),
+                        label: const Text('Download PDF'),
+                      ),
                     ),
             ),
           ),

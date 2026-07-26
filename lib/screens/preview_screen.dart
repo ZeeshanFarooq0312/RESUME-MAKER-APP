@@ -12,10 +12,8 @@ import '../models/resume_data.dart';
 import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
 import '../services/documents_repository.dart';
-import '../services/download_credits_service.dart';
 import '../services/translation_service.dart';
 import '../theme/app_theme.dart';
-import 'paywall_sheet.dart';
 import 'template_screen.dart';
 
 const _templateTitles = {
@@ -51,7 +49,6 @@ class PreviewScreen extends StatefulWidget {
 }
 
 class _PreviewScreenState extends State<PreviewScreen> {
-  int _credits = 0;
   bool _downloading = false;
   TranslateLanguage? _translatedLanguage;
   late Future<Uint8List> _pdfFuture;
@@ -59,7 +56,6 @@ class _PreviewScreenState extends State<PreviewScreen> {
   @override
   void initState() {
     super.initState();
-    _refreshCredits();
     _setScreenshotBlocking(true);
     _pdfFuture = _generatePdf(widget.resumeData);
   }
@@ -197,11 +193,6 @@ class _PreviewScreenState extends State<PreviewScreen> {
     }
   }
 
-  Future<void> _refreshCredits() async {
-    final credits = await DownloadCreditsService.getCredits();
-    if (mounted) setState(() => _credits = credits);
-  }
-
   String get _fileName =>
       '${widget.resumeData.personalInfo.fullName.isEmpty ? "resume" : widget.resumeData.personalInfo.fullName.replaceAll(" ", "_")}.pdf';
 
@@ -229,24 +220,13 @@ class _PreviewScreenState extends State<PreviewScreen> {
   }
 
   Future<void> _onDownloadPressed() async {
-    if (_credits <= 0) {
-      final unlocked = await showPaywallSheet(context);
-      if (unlocked != true) return;
-      await _refreshCredits();
-    }
-
     setState(() => _downloading = true);
     try {
-      final spent = await DownloadCreditsService.consumeCredit();
-      if (!spent) return; // race with another download; bail safely
       final bytes = await _pdfFuture;
       await Printing.sharePdf(bytes: bytes, filename: _fileName);
       await _touchDocumentEntry();
     } finally {
-      if (mounted) {
-        setState(() => _downloading = false);
-        await _refreshCredits();
-      }
+      if (mounted) setState(() => _downloading = false);
     }
   }
 
@@ -324,30 +304,20 @@ class _PreviewScreenState extends State<PreviewScreen> {
                         child: const Text('Use This Template'),
                       ),
                     )
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _credits > 0
-                                ? '$_credits download${_credits == 1 ? '' : 's'} available'
-                                : 'Preview is free — \$3 unlocks 2 downloads',
-                            style: const TextStyle(color: AppColors.slate600, fontSize: 12.5),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          onPressed: _downloading ? null : _onDownloadPressed,
-                          icon: _downloading
-                              ? const SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                )
-                              : Icon(_credits > 0 ? Icons.download : Icons.lock_outline, size: 18),
-                          label: Text(_credits > 0 ? 'Download PDF' : 'Unlock & Download'),
-                        ),
-                      ],
+                  : SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _downloading ? null : _onDownloadPressed,
+                        icon: _downloading
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.download, size: 18),
+                        label: const Text('Download PDF'),
+                      ),
                     ),
             ),
           ),
