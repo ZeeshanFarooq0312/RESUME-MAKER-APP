@@ -1,5 +1,5 @@
 name: resume_builder
-description: "Smart Resume Builder - offline CV maker with PDF export"
+description: "Resume Builder - offline CV, cover letter & proposal maker with PDF export"
 publish_to: 'none'
 version: 1.0.0+1
 

@@ -97,10 +97,10 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
               child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Smart Document Builder', style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text('Resume Builder', style: TextStyle(fontWeight: FontWeight.w600)),
                   SizedBox(height: 4),
                   Text(
-                    'Build resumes, cover letters, and proposals — fully offline, no account needed.',
+                    'CV, cover letter, and proposal maker — fully offline, no account needed.',
                     style: TextStyle(color: AppColors.slate600, fontSize: 12.5, height: 1.4),
                   ),
                 ],

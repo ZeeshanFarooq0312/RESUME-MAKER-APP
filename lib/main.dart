@@ -4,9 +4,10 @@ import 'theme/app_theme.dart';
 import 'screens/app_shell.dart';
 
 void main() {
-  // This app has no INTERNET permission and works fully offline, so
-  // GoogleFonts should never attempt a network fetch — it will only ever
-  // fall back anyway. Disabling it up front keeps startup deterministic.
+  // Fonts are bundled as assets and rendered via PdfFonts/pw.Font, not
+  // GoogleFonts network fetching, so this should never attempt a network
+  // fetch — it would only ever fall back anyway. Disabling it up front keeps
+  // startup deterministic.
   GoogleFonts.config.allowRuntimeFetching = false;
   runApp(const ResumeBuilderApp());
 }
@@ -17,7 +18,7 @@ class ResumeBuilderApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Smart Resume Builder',
+      title: 'Resume Builder',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       home: const AppShell(),

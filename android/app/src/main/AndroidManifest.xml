@@ -5,7 +5,7 @@
          fully offline. No other network use in this app. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="resume_app"
+        android:label="Resume Builder"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -18,7 +18,8 @@
       "Bash(./gradlew --stop)",
       "Bash(find C:/Users/ZeshanFarooq/AppData/Local/Pub/Cache/hosted/pub.dev/file_picker-11.0.2/android/src/main -iname *.kt -o -iname *.java)",
       "Bash(flutter --version)",
-      "Bash(dart analyze *)"
+      "Bash(dart analyze *)",
+      "Bash(python3 -c \"from PIL import Image; im=Image.open\\('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'\\); print\\(im.size\\)\")"
     ]
   }
 }

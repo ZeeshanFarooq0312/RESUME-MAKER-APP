@@ -184,7 +184,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
-                    Text('Smart Document Builder', style: Theme.of(context).textTheme.headlineMedium),
+                    Text('Resume Builder', style: Theme.of(context).textTheme.headlineMedium),
                     const SizedBox(height: 16),
                     Container(
                       width: double.infinity,
