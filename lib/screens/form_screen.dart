@@ -10,6 +10,7 @@ import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/accordion_section.dart';
+import '../widgets/ai_action_button.dart';
 import 'preview_screen.dart';
 import 'template_screen.dart';
 
@@ -322,12 +323,10 @@ class _SummaryFieldState extends State<_SummaryField> {
           onChanged: (v) => widget.data.personalInfo.summary = v,
         ),
         const SizedBox(height: 8),
-        TextButton.icon(
+        AiActionButton(
+          label: 'Generate with AI',
+          busy: _aiBusy,
           onPressed: _aiBusy ? null : _onGenerateWithAi,
-          icon: _aiBusy
-              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.auto_awesome, size: 16),
-          label: const Text('Generate with AI'),
         ),
       ],
     );
@@ -491,14 +490,15 @@ class _ExperienceCardState extends State<_ExperienceCard> {
                 labelText: 'Key Responsibilities / Achievements', filled: true, fillColor: Colors.white),
             onChanged: (v) => entry.description = v,
           ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: _aiBusy ? null : _onRewriteWithAi,
-              icon: _aiBusy
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.auto_awesome, size: 16),
-              label: const Text('Rewrite with AI'),
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: AiActionButton(
+                label: 'Rewrite with AI',
+                busy: _aiBusy,
+                onPressed: _aiBusy ? null : _onRewriteWithAi,
+              ),
             ),
           ),
         ],

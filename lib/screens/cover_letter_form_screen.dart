@@ -5,6 +5,7 @@ import '../models/document_entry.dart';
 import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
 import '../widgets/accordion_section.dart';
+import '../widgets/ai_action_button.dart';
 import 'cover_letter_preview_screen.dart';
 import 'cover_letter_template_screen.dart';
 
@@ -305,12 +306,10 @@ class _LetterContentFieldsState extends State<_LetterContentFields> {
         ),
         Align(
           alignment: Alignment.centerRight,
-          child: TextButton.icon(
+          child: AiActionButton(
+            label: 'Generate with AI',
+            busy: _aiBusy,
             onPressed: _aiBusy ? null : _onGenerateWithAi,
-            icon: _aiBusy
-                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.auto_awesome, size: 16),
-            label: const Text('Generate with AI'),
           ),
         ),
         const SizedBox(height: 10),

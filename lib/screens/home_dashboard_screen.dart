@@ -299,14 +299,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _onGenerateFromJobDescription,
-                        icon: const Icon(Icons.psychology_outlined, size: 18),
-                        label: const Text('Generate Resume from Job Description'),
-                      ),
-                    ),
+                    _AiGenerateButton(onTap: _onGenerateFromJobDescription),
                     const SizedBox(height: 28),
                     Text('My Documents', style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: 12),
@@ -362,6 +355,76 @@ class _QuickActionCard extends StatelessWidget {
               style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-width, gradient-branded entry point into the AI resume-tailoring
+/// flow. Deliberately styled differently from every other button on this
+/// screen (which are all white/outlined) so the AI feature reads as its
+/// own distinct thing rather than one more document-type action.
+class _AiGenerateButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AiGenerateButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.primary, AppColors.primaryDark],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Generate Resume with AI',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14.5),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Paste a job description, get a resume tailored to it',
+                      style: TextStyle(color: Colors.white70, fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 14),
+            ],
+          ),
         ),
       ),
     );

@@ -6,6 +6,7 @@ import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/accordion_section.dart';
+import '../widgets/ai_action_button.dart';
 import 'proposal_preview_screen.dart';
 import 'proposal_template_screen.dart';
 
@@ -275,12 +276,10 @@ class _OverviewScopeFieldsState extends State<_OverviewScopeFields> {
     final busy = _busyField == field;
     return Align(
       alignment: Alignment.centerRight,
-      child: TextButton.icon(
+      child: AiActionButton(
+        label: label,
+        busy: busy,
         onPressed: _busyField == null ? onPressed : null,
-        icon: busy
-            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.auto_awesome, size: 16),
-        label: Text(label),
       ),
     );
   }
