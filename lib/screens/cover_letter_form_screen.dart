@@ -3,11 +3,27 @@ import 'package:uuid/uuid.dart';
 import '../models/cover_letter_data.dart';
 import '../models/document_entry.dart';
 import '../services/documents_repository.dart';
+import '../services/groq_service.dart';
 import '../widgets/accordion_section.dart';
 import 'cover_letter_preview_screen.dart';
 import 'cover_letter_template_screen.dart';
 
 const _uuid = Uuid();
+
+void _showAiNotConfiguredDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('AI features not set up'),
+      content: const Text("AI features aren't set up on this build. Ask the developer to configure a Groq API key."),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+    ),
+  );
+}
+
+void _showAiErrorSnackBar(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}
 
 class CoverLetterFormScreen extends StatefulWidget {
   final DocumentEntry? entry;
@@ -215,6 +231,7 @@ class _LetterContentFieldsState extends State<_LetterContentFields> {
   late final _salutation = TextEditingController(text: widget.data.salutation);
   late final _body = TextEditingController(text: widget.data.body);
   late final _closing = TextEditingController(text: widget.data.closing);
+  bool _aiBusy = false;
 
   @override
   void dispose() {
@@ -222,6 +239,43 @@ class _LetterContentFieldsState extends State<_LetterContentFields> {
     _body.dispose();
     _closing.dispose();
     super.dispose();
+  }
+
+  Future<void> _onGenerateWithAi() async {
+    if (!GroqService.isConfigured) {
+      _showAiNotConfiguredDialog(context);
+      return;
+    }
+    final d = widget.data;
+    if (d.jobTitle.trim().isEmpty && d.companyName.trim().isEmpty) {
+      _showAiErrorSnackBar(context, 'Fill in Position and Company first so AI has something to write about.');
+      return;
+    }
+    setState(() => _aiBusy = true);
+    try {
+      final result = await GroqService.generateCoverLetterBody(context: d);
+      final previous = _body.text;
+      setState(() {
+        _body.text = result;
+        d.body = result;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Letter body generated with AI'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => setState(() {
+              _body.text = previous;
+              d.body = previous;
+            }),
+          ),
+        ));
+      }
+    } on AiServiceException catch (e) {
+      if (mounted) _showAiErrorSnackBar(context, e.message);
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
   }
 
   @override
@@ -238,7 +292,7 @@ class _LetterContentFieldsState extends State<_LetterContentFields> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.only(bottom: 4),
           child: TextFormField(
             controller: _body,
             maxLines: 12,
@@ -249,6 +303,17 @@ class _LetterContentFieldsState extends State<_LetterContentFields> {
             onChanged: (v) => d.body = v,
           ),
         ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: _aiBusy ? null : _onGenerateWithAi,
+            icon: _aiBusy
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.auto_awesome, size: 16),
+            label: const Text('Generate with AI'),
+          ),
+        ),
+        const SizedBox(height: 10),
         TextFormField(
           controller: _closing,
           decoration: const InputDecoration(labelText: 'Closing'),

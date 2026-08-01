@@ -1,138 +1,123 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:uuid/uuid.dart';
 import '../data/skill_suggestions.dart';
-import '../models/document_entry.dart';
 import '../models/resume_data.dart';
-import '../services/documents_repository.dart';
-import '../services/groq_service.dart';
+import '../services/profile_repository.dart';
 import '../theme/app_theme.dart';
 import '../widgets/accordion_section.dart';
-import 'preview_screen.dart';
-import 'template_screen.dart';
 
-const _uuid = Uuid();
-
-void _showAiNotConfiguredDialog(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text('AI features not set up'),
-      content: const Text("AI features aren't set up on this build. Ask the developer to configure a Groq API key."),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-    ),
-  );
-}
-
-void _showAiErrorSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-}
-
-class FormScreen extends StatefulWidget {
-  final DocumentEntry? entry;
-  final ResumeTemplate? initialTemplate;
-  const FormScreen({super.key, this.entry, this.initialTemplate});
+/// One-time local profile form: name, title, contact info, experience,
+/// education, and skills, saved under a single SharedPreferences key via
+/// [ProfileRepository]. This is the source of truth the AI resume-tailoring
+/// feature reads from — there's no account/login involved, it's stored on
+/// this device exactly like every other document in the app.
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
 
   @override
-  State<FormScreen> createState() => _FormScreenState();
+  State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _FormScreenState extends State<FormScreen> {
-  late final String _entryId = widget.entry?.id ?? _uuid.v4();
-  late final ResumeData data =
-      widget.entry != null ? ResumeData.fromJson(widget.entry!.payload) : ResumeData();
+class _ProfileScreenState extends State<ProfileScreen> {
+  ResumeData? _data;
 
-  Future<void> _saveEntry() async {
-    await DocumentsRepository.save(DocumentEntry(
-      id: _entryId,
-      kind: DocumentKind.resume,
-      title: data.personalInfo.fullName.isEmpty ? 'My Resume' : data.personalInfo.fullName,
-      templateId: widget.initialTemplate?.name ??
-          widget.entry?.templateId ??
-          ResumeTemplate.classic.name,
-      updatedAt: DateTime.now(),
-      completionPercent: data.completionPercent,
-      payload: data.toJson(),
-    ));
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final loaded = await ProfileRepository.load();
+    if (mounted) setState(() => _data = loaded ?? ResumeData());
+  }
+
+  Future<void> _save() async {
+    final data = _data;
+    if (data == null) return;
+    await ProfileRepository.save(data);
   }
 
   Future<void> _onBack() async {
-    await _saveEntry();
+    await _save();
     if (mounted) Navigator.pop(context);
   }
 
-  Future<void> _onExport() async {
-    await _saveEntry();
-    if (!mounted) return;
-    final template = widget.initialTemplate;
-    if (template != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PreviewScreen(resumeData: data, template: template, documentId: _entryId),
-        ),
-      );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => TemplateScreen(resumeData: data, documentId: _entryId)),
+  Future<void> _onSavePressed() async {
+    await _save();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile saved')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final data = _data;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _onBack),
-        title: Text(widget.entry == null ? 'New Resume' : 'Edit Resume'),
+        title: const Text('My Profile'),
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            AccordionSection(
-              title: 'Personal Data',
-              initiallyExpanded: true,
-              child: _PersonalDataFields(data: data),
-            ),
-            AccordionSection(title: 'Summary', child: _SummaryField(data: data)),
-            AccordionSection(title: 'Experience', child: _ExperienceSection(data: data)),
-            AccordionSection(title: 'Education', child: _EducationSection(data: data)),
-            AccordionSection(title: 'Skills', child: _SkillsSection(data: data)),
-          ],
-        ),
+        child: data == null
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Used only to power AI resume tailoring — stored locally, never uploaded '
+                      'except when you explicitly generate a tailored resume.',
+                      style: TextStyle(color: AppColors.slate800, fontSize: 12.5, height: 1.4),
+                    ),
+                  ),
+                  AccordionSection(
+                    title: 'Personal Info',
+                    initiallyExpanded: true,
+                    child: _PersonalInfoFields(data: data),
+                  ),
+                  AccordionSection(title: 'Summary', child: _SummaryField(data: data)),
+                  AccordionSection(title: 'Experience', child: _ExperienceSection(data: data)),
+                  AccordionSection(title: 'Education', child: _EducationSection(data: data)),
+                  AccordionSection(title: 'Skills', child: _SkillsSection(data: data)),
+                ],
+              ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _onExport,
-              child: const Text('Preview & Export'),
+      bottomNavigationBar: data == null
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _onSavePressed,
+                    child: const Text('Save Profile'),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
-      ),
     );
   }
 }
 
-// ---------- Personal Data ----------
-// StatefulWidget so each keystroke only rebuilds this section's own subtree
-// via the field's local TextEditingController, never the whole form.
-class _PersonalDataFields extends StatefulWidget {
+// ---------- Personal Info ----------
+class _PersonalInfoFields extends StatefulWidget {
   final ResumeData data;
-  const _PersonalDataFields({required this.data});
+  const _PersonalInfoFields({required this.data});
 
   @override
-  State<_PersonalDataFields> createState() => _PersonalDataFieldsState();
+  State<_PersonalInfoFields> createState() => _PersonalInfoFieldsState();
 }
 
-class _PersonalDataFieldsState extends State<_PersonalDataFields> {
+class _PersonalInfoFieldsState extends State<_PersonalInfoFields> {
   late final _controllers = <String, TextEditingController>{
     'fullName': TextEditingController(text: widget.data.personalInfo.fullName),
     'jobTitle': TextEditingController(text: widget.data.personalInfo.jobTitle),
@@ -149,35 +134,11 @@ class _PersonalDataFieldsState extends State<_PersonalDataFields> {
     super.dispose();
   }
 
-  Future<void> _pickPhoto() async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 640,
-      maxHeight: 640,
-      imageQuality: 82,
-    );
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
-    setState(() => widget.data.personalInfo.photoBase64 = base64Encode(bytes));
-  }
-
-  void _removePhoto() {
-    setState(() => widget.data.personalInfo.photoBase64 = '');
-  }
-
   @override
   Widget build(BuildContext context) {
     final info = widget.data.personalInfo;
     return Column(
       children: [
-        Center(
-          child: _PhotoPicker(
-            photoBase64: info.photoBase64,
-            onPick: _pickPhoto,
-            onRemove: _removePhoto,
-          ),
-        ),
-        const SizedBox(height: 20),
         _field('Full Name', _controllers['fullName']!, (v) => info.fullName = v),
         _field('Job Title', _controllers['jobTitle']!, (v) => info.jobTitle = v),
         _field('Email', _controllers['email']!, (v) => info.email = v),
@@ -200,60 +161,6 @@ class _PersonalDataFieldsState extends State<_PersonalDataFields> {
   }
 }
 
-class _PhotoPicker extends StatelessWidget {
-  final String photoBase64;
-  final VoidCallback onPick;
-  final VoidCallback onRemove;
-  const _PhotoPicker({required this.photoBase64, required this.onPick, required this.onRemove});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasPhoto = photoBase64.isNotEmpty;
-    return Column(
-      children: [
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            GestureDetector(
-              onTap: onPick,
-              child: CircleAvatar(
-                radius: 44,
-                backgroundColor: AppColors.slate100,
-                backgroundImage: hasPhoto ? MemoryImage(base64Decode(photoBase64)) : null,
-                child: hasPhoto
-                    ? null
-                    : const Icon(Icons.add_a_photo_outlined, color: AppColors.slate400, size: 26),
-              ),
-            ),
-            if (hasPhoto)
-              Positioned(
-                right: -4,
-                bottom: -4,
-                child: GestureDetector(
-                  onTap: onRemove,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    child: const Icon(Icons.close, size: 15, color: Colors.red),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          hasPhoto ? 'Tap photo to change' : 'Add a photo (optional)',
-          style: const TextStyle(color: AppColors.slate600, fontSize: 12),
-        ),
-        const Text(
-          'Only shown on the Modern template',
-          style: TextStyle(color: AppColors.slate400, fontSize: 10.5),
-        ),
-      ],
-    );
-  }
-}
-
 // ---------- Summary ----------
 class _SummaryField extends StatefulWidget {
   final ResumeData data;
@@ -265,7 +172,6 @@ class _SummaryField extends StatefulWidget {
 
 class _SummaryFieldState extends State<_SummaryField> {
   late final _controller = TextEditingController(text: widget.data.personalInfo.summary);
-  bool _aiBusy = false;
 
   @override
   void dispose() {
@@ -273,70 +179,18 @@ class _SummaryFieldState extends State<_SummaryField> {
     super.dispose();
   }
 
-  Future<void> _onGenerateWithAi() async {
-    if (!GroqService.isConfigured) {
-      _showAiNotConfiguredDialog(context);
-      return;
-    }
-    final info = widget.data.personalInfo;
-    if (info.jobTitle.trim().isEmpty && widget.data.experience.isEmpty) {
-      _showAiErrorSnackBar(context, 'Add a job title or work experience first so AI has something to summarize.');
-      return;
-    }
-    setState(() => _aiBusy = true);
-    try {
-      final result = await GroqService.generateSummary(context: widget.data);
-      final previous = _controller.text;
-      setState(() {
-        _controller.text = result;
-        info.summary = result;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('Summary generated with AI'),
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => setState(() {
-              _controller.text = previous;
-              info.summary = previous;
-            }),
-          ),
-        ));
-      }
-    } on AiServiceException catch (e) {
-      if (mounted) _showAiErrorSnackBar(context, e.message);
-    } finally {
-      if (mounted) setState(() => _aiBusy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        TextFormField(
-          controller: _controller,
-          maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Professional Summary'),
-          onChanged: (v) => widget.data.personalInfo.summary = v,
-        ),
-        const SizedBox(height: 8),
-        TextButton.icon(
-          onPressed: _aiBusy ? null : _onGenerateWithAi,
-          icon: _aiBusy
-              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.auto_awesome, size: 16),
-          label: const Text('Generate with AI'),
-        ),
-      ],
+    return TextFormField(
+      controller: _controller,
+      maxLines: 4,
+      decoration: const InputDecoration(labelText: 'Professional Summary'),
+      onChanged: (v) => widget.data.personalInfo.summary = v,
     );
   }
 }
 
 // ---------- Experience ----------
-// StatefulWidget only to own the add/delete rebuild locally; typing inside
-// a card never reaches this widget (see _ExperienceCard).
 class _ExperienceSection extends StatefulWidget {
   final ResumeData data;
   const _ExperienceSection({required this.data});
@@ -380,7 +234,6 @@ class _ExperienceCardState extends State<_ExperienceCard> {
   late final _startDate = TextEditingController(text: widget.entry.startDate);
   late final _endDate = TextEditingController(text: widget.entry.endDate);
   late final _description = TextEditingController(text: widget.entry.description);
-  bool _aiBusy = false;
 
   @override
   void dispose() {
@@ -390,42 +243,6 @@ class _ExperienceCardState extends State<_ExperienceCard> {
     _endDate.dispose();
     _description.dispose();
     super.dispose();
-  }
-
-  Future<void> _onRewriteWithAi() async {
-    if (!GroqService.isConfigured) {
-      _showAiNotConfiguredDialog(context);
-      return;
-    }
-    if (_description.text.trim().isEmpty) return;
-    setState(() => _aiBusy = true);
-    try {
-      final result = await GroqService.rewriteBullet(
-        currentText: _description.text,
-        roleContext: '${widget.entry.role} at ${widget.entry.company}',
-      );
-      final previous = _description.text;
-      setState(() {
-        _description.text = result;
-        widget.entry.description = result;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('Rewritten with AI'),
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => setState(() {
-              _description.text = previous;
-              widget.entry.description = previous;
-            }),
-          ),
-        ));
-      }
-    } on AiServiceException catch (e) {
-      if (mounted) _showAiErrorSnackBar(context, e.message);
-    } finally {
-      if (mounted) setState(() => _aiBusy = false);
-    }
   }
 
   @override
@@ -490,16 +307,6 @@ class _ExperienceCardState extends State<_ExperienceCard> {
             decoration: const InputDecoration(
                 labelText: 'Key Responsibilities / Achievements', filled: true, fillColor: Colors.white),
             onChanged: (v) => entry.description = v,
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: _aiBusy ? null : _onRewriteWithAi,
-              icon: _aiBusy
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.auto_awesome, size: 16),
-              label: const Text('Rewrite with AI'),
-            ),
           ),
         ],
       ),

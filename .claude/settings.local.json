@@ -19,7 +19,27 @@
       "Bash(find C:/Users/ZeshanFarooq/AppData/Local/Pub/Cache/hosted/pub.dev/file_picker-11.0.2/android/src/main -iname *.kt -o -iname *.java)",
       "Bash(flutter --version)",
       "Bash(dart analyze *)",
-      "Bash(python3 -c \"from PIL import Image; im=Image.open\\('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'\\); print\\(im.size\\)\")"
+      "Bash(python3 -c \"from PIL import Image; im=Image.open\\('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'\\); print\\(im.size\\)\")",
+      "Bash(command -v python3 python magick convert inkscape rsvg-convert node npx)",
+      "Read(//c/Program Files/Google/Chrome/Application/**)",
+      "Bash(\"/c/Users/ZeshanFarooq/AppData/Local/Programs/Python/Python311/python\" -c \"import PIL; print\\(PIL.__version__\\)\")",
+      "Bash(\"/c/Users/ZeshanFarooq/AppData/Local/Programs/Python/Python311/python\" -c \"import numpy; print\\(numpy.__version__\\)\")",
+      "Bash(\"/c/Users/ZeshanFarooq/AppData/Local/Programs/Python/Python311/python\" \"C:\\\\Users\\\\ZeshanFarooq\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--resume-app\\\\e3e4942e-94cf-4084-8aa2-16c572f321e9\\\\scratchpad\\\\generate_icon.py\")",
+      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Programs/Python/Python311/python -c ' *)",
+      "WebFetch(domain:console.groq.com)",
+      "Bash(git check-ignore *)",
+      "Bash(mkdir -p d:/resume_app/.vscode)",
+      "Bash(adb devices *)",
+      "PowerShell(adb devices -l)",
+      "PowerShell($candidates = @\\(\"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\", \"$env:ANDROID_HOME\\\\platform-tools\\\\adb.exe\", \"$env:ANDROID_SDK_ROOT\\\\platform-tools\\\\adb.exe\"\\); foreach \\($p in $candidates\\) { if \\(Test-Path $p\\) { Write-Output \"FOUND: $p\" } else { Write-Output \"missing: $p\" } })",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices -l)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" shell ip addr show wlan0)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" tcpip 5555)",
+      "PowerShell(Start-Sleep -Seconds 2; & \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" connect 192.168.100.227:5555)",
+      "PowerShell(powershell -ExecutionPolicy Bypass -File \"d:\\\\resume_app\\\\scripts\\\\wireless_debug.ps1\")"
+    ],
+    "additionalDirectories": [
+      "d:\\resume_app\\.vscode"
     ]
   }
 }

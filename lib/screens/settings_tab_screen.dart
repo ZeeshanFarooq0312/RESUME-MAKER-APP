@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
+import 'profile_screen.dart';
 
 class SettingsTabScreen extends StatefulWidget {
   const SettingsTabScreen({super.key});
@@ -85,6 +86,48 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
               ),
             ),
             const SizedBox(height: 24),
+            const Text('AI & Profile', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            const SizedBox(height: 8),
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE7E5F3)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.person_outline, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('My Profile', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5)),
+                          Text(
+                            'Manage the profile used for AI resume tailoring',
+                            style: TextStyle(color: AppColors.slate600, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: AppColors.slate400),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
             const Text('About', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
             const SizedBox(height: 8),
             Container(
@@ -100,7 +143,10 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
                   Text('Resume Builder', style: TextStyle(fontWeight: FontWeight.w600)),
                   SizedBox(height: 4),
                   Text(
-                    'CV, cover letter, and proposal maker — fully offline, no account needed.',
+                    'CV, cover letter, and proposal maker — fully offline by default, no account '
+                    'needed. Optional AI features (profile-based rewriting and job-description '
+                    'tailoring) require internet and send the relevant text to a third-party AI '
+                    'provider (Groq) only when you use them.',
                     style: TextStyle(color: AppColors.slate600, fontSize: 12.5, height: 1.4),
                   ),
                 ],

@@ -3,12 +3,28 @@ import 'package:uuid/uuid.dart';
 import '../models/document_entry.dart';
 import '../models/proposal_data.dart';
 import '../services/documents_repository.dart';
+import '../services/groq_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/accordion_section.dart';
 import 'proposal_preview_screen.dart';
 import 'proposal_template_screen.dart';
 
 const _uuid = Uuid();
+
+void _showAiNotConfiguredDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('AI features not set up'),
+      content: const Text("AI features aren't set up on this build. Ask the developer to configure a Groq API key."),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+    ),
+  );
+}
+
+void _showAiErrorSnackBar(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}
 
 class ProposalFormScreen extends StatefulWidget {
   final DocumentEntry? entry;
@@ -171,6 +187,8 @@ class _OverviewScopeFields extends StatefulWidget {
 class _OverviewScopeFieldsState extends State<_OverviewScopeFields> {
   late final _overview = TextEditingController(text: widget.data.overview);
   late final _scope = TextEditingController(text: widget.data.scopeOfWork);
+  // Tracks which field is generating, if any — only one AI call runs at a time.
+  String? _busyField;
 
   @override
   void dispose() {
@@ -179,13 +197,101 @@ class _OverviewScopeFieldsState extends State<_OverviewScopeFields> {
     super.dispose();
   }
 
+  bool get _titleMissing => widget.data.title.trim().isEmpty;
+
+  Future<void> _onGenerateOverview() async {
+    if (!GroqService.isConfigured) {
+      _showAiNotConfiguredDialog(context);
+      return;
+    }
+    if (_titleMissing) {
+      _showAiErrorSnackBar(context, 'Fill in the Proposal Title first so AI has something to write about.');
+      return;
+    }
+    setState(() => _busyField = 'overview');
+    try {
+      final result = await GroqService.generateProposalOverview(context: widget.data);
+      final previous = _overview.text;
+      setState(() {
+        _overview.text = result;
+        widget.data.overview = result;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Overview generated with AI'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => setState(() {
+              _overview.text = previous;
+              widget.data.overview = previous;
+            }),
+          ),
+        ));
+      }
+    } on AiServiceException catch (e) {
+      if (mounted) _showAiErrorSnackBar(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busyField = null);
+    }
+  }
+
+  Future<void> _onGenerateScope() async {
+    if (!GroqService.isConfigured) {
+      _showAiNotConfiguredDialog(context);
+      return;
+    }
+    if (_titleMissing) {
+      _showAiErrorSnackBar(context, 'Fill in the Proposal Title first so AI has something to write about.');
+      return;
+    }
+    setState(() => _busyField = 'scope');
+    try {
+      final result = await GroqService.generateProposalScope(context: widget.data);
+      final previous = _scope.text;
+      setState(() {
+        _scope.text = result;
+        widget.data.scopeOfWork = result;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Scope of work generated with AI'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => setState(() {
+              _scope.text = previous;
+              widget.data.scopeOfWork = previous;
+            }),
+          ),
+        ));
+      }
+    } on AiServiceException catch (e) {
+      if (mounted) _showAiErrorSnackBar(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busyField = null);
+    }
+  }
+
+  Widget _aiButton(String label, String field, VoidCallback onPressed) {
+    final busy = _busyField == field;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton.icon(
+        onPressed: _busyField == null ? onPressed : null,
+        icon: busy
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.auto_awesome, size: 16),
+        label: Text(label),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.only(bottom: 4),
           child: TextFormField(
             controller: _overview,
             maxLines: 6,
@@ -196,6 +302,8 @@ class _OverviewScopeFieldsState extends State<_OverviewScopeFields> {
             onChanged: (v) => d.overview = v,
           ),
         ),
+        _aiButton('Generate with AI', 'overview', _onGenerateOverview),
+        const SizedBox(height: 10),
         TextFormField(
           controller: _scope,
           maxLines: 8,
@@ -205,6 +313,7 @@ class _OverviewScopeFieldsState extends State<_OverviewScopeFields> {
           ),
           onChanged: (v) => d.scopeOfWork = v,
         ),
+        _aiButton('Generate with AI', 'scope', _onGenerateScope),
       ],
     );
   }

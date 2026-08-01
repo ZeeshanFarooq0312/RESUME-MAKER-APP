@@ -3,11 +3,15 @@ import 'package:uuid/uuid.dart';
 import '../models/document_entry.dart';
 import '../models/resume_data.dart';
 import '../services/documents_repository.dart';
+import '../services/groq_service.dart';
+import '../services/profile_repository.dart';
 import '../services/resume_pdf_importer.dart';
 import '../theme/app_theme.dart';
 import '../widgets/document_card.dart';
+import 'ai_resume_generator_screen.dart';
 import 'cover_letter_form_screen.dart';
 import 'form_screen.dart';
+import 'profile_screen.dart';
 import 'proposal_form_screen.dart';
 
 const _uuid = Uuid();
@@ -132,6 +136,48 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
+  Future<void> _onGenerateFromJobDescription() async {
+    if (!GroqService.isConfigured) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('AI features not set up'),
+          content: const Text(
+              "AI features aren't set up on this build. Ask the developer to configure a Groq API key."),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+        ),
+      );
+      return;
+    }
+    final hasProfile = await ProfileRepository.exists();
+    if (!mounted) return;
+    if (!hasProfile) {
+      final setUp = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Set up your profile first'),
+          content: const Text(
+              'AI resume tailoring uses your saved profile (work history, education, skills) as '
+              'the source of truth. Add it once and reuse it for every tailored resume.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Set Up Profile'),
+            ),
+          ],
+        ),
+      );
+      if (setUp == true && mounted) {
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+      }
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const AiResumeGeneratorScreen()));
+    _load();
+  }
+
   void _showError(String message) {
     showDialog(
       context: context,
@@ -203,7 +249,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Everything you build stays on this device — works fully offline.',
+                              'Everything you build stays on this device by default — AI features are optional and need internet.',
                               style: TextStyle(color: Colors.white, fontSize: 12.5, height: 1.3),
                             ),
                           ),
@@ -250,6 +296,15 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                                 child: CircularProgressIndicator(strokeWidth: 2))
                             : const Icon(Icons.upload_file, size: 18),
                         label: Text(_importing ? 'Reading PDF…' : 'Upload Existing Resume (PDF)'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _onGenerateFromJobDescription,
+                        icon: const Icon(Icons.psychology_outlined, size: 18),
+                        label: const Text('Generate Resume from Job Description'),
                       ),
                     ),
                     const SizedBox(height: 28),
