@@ -42,12 +42,14 @@ class GroqService {
 
   static bool get isConfigured => _apiKey.isNotEmpty;
 
-  static Future<String> _complete({
-    required String systemPrompt,
-    required String userPrompt,
-    bool jsonMode = false,
-    double temperature = 0.5,
-  }) async {
+  /// [retriesLeft] covers one specific, known-transient failure: Groq's
+  /// `json_object` mode only guarantees the model's raw output is *parseable
+  /// as JSON* — it doesn't stop the model from occasionally producing
+  /// malformed output, which Groq then rejects with a `json_validate_failed`
+  /// error rather than returning it. That's a probabilistic generation
+  /// hiccup, not a bad request, so a single automatic retry is the standard
+  /// mitigation instead of surfacing it to the user as a failure.
+  static Future<String> _post(Map<String, dynamic> body, {int retriesLeft = 1}) async {
     http.Response response;
     try {
       response = await http
@@ -57,15 +59,7 @@ class GroqService {
               'Authorization': 'Bearer $_apiKey',
               'Content-Type': 'application/json',
             },
-            body: jsonEncode({
-              'model': _model,
-              'messages': [
-                {'role': 'system', 'content': systemPrompt},
-                {'role': 'user', 'content': userPrompt},
-              ],
-              'temperature': temperature,
-              if (jsonMode) 'response_format': {'type': 'json_object'},
-            }),
+            body: jsonEncode(body),
           )
           .timeout(_timeout);
     } on TimeoutException {
@@ -89,7 +83,27 @@ class GroqService {
       throw AiServiceException('The AI service is temporarily unavailable. Please try again shortly.');
     }
     if (response.statusCode != 200) {
-      throw AiServiceException('The AI service returned an unexpected error.');
+      String? detail;
+      String? code;
+      try {
+        final decoded = jsonDecode(response.body);
+        detail = decoded['error']?['message'] as String?;
+        code = decoded['error']?['code'] as String?;
+      } catch (_) {
+        // ignore — fall back to the status code alone below
+      }
+
+      if (code == 'json_validate_failed' && retriesLeft > 0) {
+        return _post(body, retriesLeft: retriesLeft - 1);
+      }
+
+      // Surface Groq's actual error message when available (e.g. "invalid_request_error:
+      // image too large") instead of a generic message — this is the one place callers
+      // most need the real reason, since 4xx here almost always means something specific
+      // about the request (bad image, bad params), not a generic outage.
+      throw AiServiceException(detail != null
+          ? 'The AI service rejected the request: $detail'
+          : 'The AI service returned an unexpected error (HTTP ${response.statusCode}).');
     }
 
     final Map<String, dynamic> decoded;
@@ -105,6 +119,23 @@ class GroqService {
     } catch (_) {
       throw AiServiceException('The AI service returned an unreadable response.');
     }
+  }
+
+  static Future<String> _complete({
+    required String systemPrompt,
+    required String userPrompt,
+    bool jsonMode = false,
+    double temperature = 0.5,
+  }) {
+    return _post({
+      'model': _model,
+      'messages': [
+        {'role': 'system', 'content': systemPrompt},
+        {'role': 'user', 'content': userPrompt},
+      ],
+      'temperature': temperature,
+      if (jsonMode) 'response_format': {'type': 'json_object'},
+    });
   }
 
   static Future<T> _guard<T>(Future<T> Function() body) async {

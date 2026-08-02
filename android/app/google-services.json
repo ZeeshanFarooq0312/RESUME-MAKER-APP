@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "492388672260",
+    "project_id": "resumebuilderapp-631ed",
+    "storage_bucket": "resumebuilderapp-631ed.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:492388672260:android:1014a7e0682f56c144e651",
+        "android_client_info": {
+          "package_name": "com.zeeshanfarooq.resumebuilder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyACR5T94TFMDD5C4TSxKFauZBe-jDE8zhs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:492388672260:android:082e45de8d3a67af44e651",
+        "android_client_info": {
+          "package_name": "resumebuilder.app.first"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyACR5T94TFMDD5C4TSxKFauZBe-jDE8zhs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -22,6 +22,39 @@ class AppColors {
   static const gold = primary;
   static const goldLight = primaryLight;
   static const cream = background;
+
+  /// The thin border color used under every card decoration below — kept
+  /// as a named token since it's referenced directly in a few older spots
+  /// that haven't been migrated to [AppDecorations.card] yet.
+  static const cardBorder = Color(0xFFEDEBF5);
+}
+
+/// Shared container decorations, so "card" doesn't mean something
+/// different on every screen. The soft shadow (rather than a border alone)
+/// is what reads as an actual depth system instead of flat Material
+/// defaults — every white bordered box in the app should use this instead
+/// of hand-rolling its own BoxDecoration.
+class AppDecorations {
+  const AppDecorations._();
+
+  static BoxDecoration card({double radius = 14, bool highlighted = false}) {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: highlighted ? AppColors.primary : AppColors.cardBorder,
+        width: highlighted ? 1.5 : 1,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: (highlighted ? AppColors.primary : const Color(0xFF1A1030))
+              .withValues(alpha: highlighted ? 0.14 : 0.05),
+          blurRadius: 16,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    );
+  }
 }
 
 class AppTheme {
@@ -44,6 +77,15 @@ class AppTheme {
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: AppColors.slate900,
+        ),
+        // The small "section header" style repeated ad hoc across screens
+        // (Settings, Home) as a literal TextStyle — named here so it can be
+        // referenced instead of copy-pasted.
+        labelLarge: GoogleFonts.inter(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppColors.slate800,
+          letterSpacing: 0.1,
         ),
       ),
       appBarTheme: AppBarTheme(
@@ -69,6 +111,8 @@ class AppTheme {
             fontWeight: FontWeight.w600,
             fontSize: 15,
           ),
+          elevation: 2,
+          shadowColor: AppColors.primary.withValues(alpha: 0.35),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

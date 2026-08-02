@@ -36,7 +36,20 @@
       "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" shell ip addr show wlan0)",
       "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" tcpip 5555)",
       "PowerShell(Start-Sleep -Seconds 2; & \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" connect 192.168.100.227:5555)",
-      "PowerShell(powershell -ExecutionPolicy Bypass -File \"d:\\\\resume_app\\\\scripts\\\\wireless_debug.ps1\")"
+      "PowerShell(powershell -ExecutionPolicy Bypass -File \"d:\\\\resume_app\\\\scripts\\\\wireless_debug.ps1\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" connect 192.168.100.28:41531)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" pair 192.168.100.28:39651 052809)",
+      "Bash(find / -type d -iname \"purchases_flutter-*\" 2>/dev/null | head -5)",
+      "Read(//d//**)",
+      "Bash(find / -iname \"adb.exe\" 2>/dev/null | head -5)",
+      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe devices *)",
+      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 exec-out screencap -p)",
+      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell wm size)",
+      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell input tap 270 1432)",
+      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell input keyevent KEYCODE_WAKEUP)",
+      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell dumpsys power)",
+      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell input swipe 360 1400 360 400 300)",
+      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell input tap 274 1432)"
     ],
     "additionalDirectories": [
       "d:\\resume_app\\.vscode"

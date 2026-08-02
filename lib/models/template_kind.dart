@@ -8,8 +8,11 @@ enum ResumeTemplate {
   technical,
   simpleBold,
   harvard,
+  creative,
+  elegant,
+  timeline,
 }
 
-enum CoverLetterTemplate { classic, modern, minimal }
+enum CoverLetterTemplate { classic, modern, minimal, bold, formal }
 
-enum ProposalTemplate { classic, modern, minimal }
+enum ProposalTemplate { classic, modern, minimal, corporate, executive }

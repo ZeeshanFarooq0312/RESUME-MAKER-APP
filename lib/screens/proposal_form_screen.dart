@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/document_entry.dart';
 import '../models/proposal_data.dart';
+import '../services/ai_usage_tracker.dart';
 import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/accordion_section.dart';
 import '../widgets/ai_action_button.dart';
+import 'paywall_screen.dart';
 import 'proposal_preview_screen.dart';
 import 'proposal_template_screen.dart';
 
@@ -19,6 +21,27 @@ void _showAiNotConfiguredDialog(BuildContext context) {
       title: const Text('AI features not set up'),
       content: const Text("AI features aren't set up on this build. Ask the developer to configure a Groq API key."),
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+    ),
+  );
+}
+
+void _showAiLimitReachedDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Daily AI limit reached'),
+      content: const Text(
+          "You've used all your AI generations for today. Upgrade for a higher daily limit."),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
+          },
+          child: const Text('View Plans'),
+        ),
+      ],
     ),
   );
 }
@@ -205,6 +228,11 @@ class _OverviewScopeFieldsState extends State<_OverviewScopeFields> {
       _showAiNotConfiguredDialog(context);
       return;
     }
+    if (!await AiUsageTracker.canUseAi()) {
+      if (mounted) _showAiLimitReachedDialog(context);
+      return;
+    }
+    if (!mounted) return;
     if (_titleMissing) {
       _showAiErrorSnackBar(context, 'Fill in the Proposal Title first so AI has something to write about.');
       return;
@@ -212,6 +240,7 @@ class _OverviewScopeFieldsState extends State<_OverviewScopeFields> {
     setState(() => _busyField = 'overview');
     try {
       final result = await GroqService.generateProposalOverview(context: widget.data);
+      await AiUsageTracker.recordUsage();
       final previous = _overview.text;
       setState(() {
         _overview.text = result;
@@ -241,6 +270,11 @@ class _OverviewScopeFieldsState extends State<_OverviewScopeFields> {
       _showAiNotConfiguredDialog(context);
       return;
     }
+    if (!await AiUsageTracker.canUseAi()) {
+      if (mounted) _showAiLimitReachedDialog(context);
+      return;
+    }
+    if (!mounted) return;
     if (_titleMissing) {
       _showAiErrorSnackBar(context, 'Fill in the Proposal Title first so AI has something to write about.');
       return;
@@ -248,6 +282,7 @@ class _OverviewScopeFieldsState extends State<_OverviewScopeFields> {
     setState(() => _busyField = 'scope');
     try {
       final result = await GroqService.generateProposalScope(context: widget.data);
+      await AiUsageTracker.recordUsage();
       final previous = _scope.text;
       setState(() {
         _scope.text = result;

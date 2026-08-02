@@ -27,11 +27,7 @@ class _AccordionSectionState extends State<AccordionSection> {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE7E5F3)),
-      ),
+      decoration: AppDecorations.card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

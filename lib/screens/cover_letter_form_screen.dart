@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/cover_letter_data.dart';
 import '../models/document_entry.dart';
+import '../services/ai_usage_tracker.dart';
 import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
 import '../widgets/accordion_section.dart';
 import '../widgets/ai_action_button.dart';
 import 'cover_letter_preview_screen.dart';
 import 'cover_letter_template_screen.dart';
+import 'paywall_screen.dart';
 
 const _uuid = Uuid();
 
@@ -18,6 +20,27 @@ void _showAiNotConfiguredDialog(BuildContext context) {
       title: const Text('AI features not set up'),
       content: const Text("AI features aren't set up on this build. Ask the developer to configure a Groq API key."),
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+    ),
+  );
+}
+
+void _showAiLimitReachedDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Daily AI limit reached'),
+      content: const Text(
+          "You've used all your AI generations for today. Upgrade for a higher daily limit."),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
+          },
+          child: const Text('View Plans'),
+        ),
+      ],
     ),
   );
 }
@@ -247,6 +270,11 @@ class _LetterContentFieldsState extends State<_LetterContentFields> {
       _showAiNotConfiguredDialog(context);
       return;
     }
+    if (!await AiUsageTracker.canUseAi()) {
+      if (mounted) _showAiLimitReachedDialog(context);
+      return;
+    }
+    if (!mounted) return;
     final d = widget.data;
     if (d.jobTitle.trim().isEmpty && d.companyName.trim().isEmpty) {
       _showAiErrorSnackBar(context, 'Fill in Position and Company first so AI has something to write about.');
@@ -255,6 +283,7 @@ class _LetterContentFieldsState extends State<_LetterContentFields> {
     setState(() => _aiBusy = true);
     try {
       final result = await GroqService.generateCoverLetterBody(context: d);
+      await AiUsageTracker.recordUsage();
       final previous = _body.text;
       setState(() {
         _body.text = result;

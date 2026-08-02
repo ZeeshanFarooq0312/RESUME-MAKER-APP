@@ -46,11 +46,7 @@ class DocumentCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE7E5F3)),
-        ),
+        decoration: AppDecorations.card(),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

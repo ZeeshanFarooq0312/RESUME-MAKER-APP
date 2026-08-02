@@ -3,8 +3,10 @@ import '../data/sample_documents.dart';
 import '../models/document_entry.dart';
 import '../models/resume_data.dart';
 import '../models/template_kind.dart';
+import '../services/subscription_repository.dart';
 import '../theme/app_theme.dart';
-import '../widgets/template_thumbnail.dart';
+import '../widgets/template_card.dart';
+import 'paywall_screen.dart';
 import 'preview_screen.dart';
 
 export '../models/template_kind.dart' show ResumeTemplate;
@@ -26,76 +28,48 @@ class TemplateScreen extends StatelessWidget {
           mainAxisSpacing: 16,
           childAspectRatio: 0.78,
           children: [
-            _TemplateCard(
-              title: 'Classic',
-              subtitle: 'ATS-friendly',
-              isPremium: false,
-              template: ResumeTemplate.classic,
-              onTap: () => _openPreview(context, ResumeTemplate.classic),
-            ),
-            _TemplateCard(
-              title: 'Modern',
-              subtitle: 'Color sidebar + photo',
-              isPremium: true,
-              template: ResumeTemplate.modern,
-              onTap: () => _openPreview(context, ResumeTemplate.modern),
-            ),
-            _TemplateCard(
-              title: 'Minimal',
-              subtitle: 'ATS-friendly',
-              isPremium: false,
-              template: ResumeTemplate.minimal,
-              onTap: () => _openPreview(context, ResumeTemplate.minimal),
-            ),
-            _TemplateCard(
-              title: 'Professional',
-              subtitle: 'ATS-friendly',
-              isPremium: false,
-              template: ResumeTemplate.professional,
-              onTap: () => _openPreview(context, ResumeTemplate.professional),
-            ),
-            _TemplateCard(
-              title: 'Compact',
-              subtitle: 'ATS-friendly',
-              isPremium: false,
-              template: ResumeTemplate.compact,
-              onTap: () => _openPreview(context, ResumeTemplate.compact),
-            ),
-            _TemplateCard(
-              title: 'Executive',
-              subtitle: 'ATS-friendly',
-              isPremium: false,
-              template: ResumeTemplate.executive,
-              onTap: () => _openPreview(context, ResumeTemplate.executive),
-            ),
-            _TemplateCard(
-              title: 'Technical',
-              subtitle: 'ATS-friendly',
-              isPremium: false,
-              template: ResumeTemplate.technical,
-              onTap: () => _openPreview(context, ResumeTemplate.technical),
-            ),
-            _TemplateCard(
-              title: 'Simple Bold',
-              subtitle: 'ATS-friendly',
-              isPremium: false,
-              template: ResumeTemplate.simpleBold,
-              onTap: () => _openPreview(context, ResumeTemplate.simpleBold),
-            ),
-            _TemplateCard(
-              title: 'Harvard',
-              subtitle: 'ATS-friendly',
-              isPremium: false,
-              template: ResumeTemplate.harvard,
-              onTap: () => _openPreview(context, ResumeTemplate.harvard),
-            ),
+            _card(context, title: 'Classic', subtitle: 'ATS-friendly', isPremium: false, template: ResumeTemplate.classic),
+            _card(context, title: 'Modern', subtitle: 'Color sidebar + photo', isPremium: true, template: ResumeTemplate.modern),
+            _card(context, title: 'Minimal', subtitle: 'ATS-friendly', isPremium: false, template: ResumeTemplate.minimal),
+            _card(context, title: 'Professional', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.professional),
+            _card(context, title: 'Compact', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.compact),
+            _card(context, title: 'Executive', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.executive),
+            _card(context, title: 'Technical', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.technical),
+            _card(context, title: 'Simple Bold', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.simpleBold),
+            _card(context, title: 'Harvard', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.harvard),
+            _card(context, title: 'Creative', subtitle: 'Bold color banner', isPremium: true, template: ResumeTemplate.creative),
+            _card(context, title: 'Elegant', subtitle: 'Editorial style', isPremium: true, template: ResumeTemplate.elegant),
+            _card(context, title: 'Timeline', subtitle: 'Visual work history', isPremium: true, template: ResumeTemplate.timeline),
           ],
         ),
       ),
     );
   }
 
-  void _openPreview(BuildContext context, ResumeTemplate template) {
+  Widget _card(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required bool isPremium,
+    required ResumeTemplate template,
+  }) {
+    return TemplateCard(
+      kind: DocumentKind.resume,
+      template: template,
+      title: title,
+      subtitle: subtitle,
+      badgeText: isPremium ? 'PRO' : null,
+      badgeBackgroundColor: AppColors.primaryLight.withValues(alpha: 0.7),
+      badgeTextColor: AppColors.slate900,
+      onTap: () => _openPreview(context, template, isPremium),
+    );
+  }
+
+  void _openPreview(BuildContext context, ResumeTemplate template, bool isPremium) {
+    if (isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic) {
+      _showUpgradeDialog(context);
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -114,91 +88,23 @@ class TemplateScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-class _TemplateCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final bool isPremium;
-  final ResumeTemplate template;
-  final VoidCallback onTap;
-
-  const _TemplateCard({
-    required this.title,
-    required this.subtitle,
-    required this.isPremium,
-    required this.template,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE1E4E8)),
-        ),
-        child: Column(
-          children: [
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.slate100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: TemplateThumbnail(kind: DocumentKind.resume, template: template),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: Theme.of(context).textTheme.titleLarge,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          subtitle,
-                          style: const TextStyle(color: AppColors.slate600, fontSize: 12),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (isPremium) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.goldLight.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text('PRO',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.slate900)),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
+  void _showUpgradeDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Premium template'),
+        content: const Text('This template is available on Pro. Upgrade to unlock it.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
+            },
+            child: const Text('View Plans'),
+          ),
+        ],
       ),
     );
   }

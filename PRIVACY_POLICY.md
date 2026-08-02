@@ -9,16 +9,46 @@ information when you use it.
 
 ## Overview
 
-The app has no account system and no backend server of its own — there is no
-"cloud" run by us for your data to go to, because none exists. Everything you
-type, import, or generate is stored in the app's local storage **on your own
-device**. The developer never receives a copy of it. The one exception is the
-app's optional AI features, described below: if you choose to use one, the
-relevant text is sent to a third-party AI provider (Groq) to generate a
-suggestion, and only then.
+The app itself has no backend server of its own for your resume, cover
+letter, or proposal content — there is no "cloud" run by us for that data to
+go to, because none exists. The one part of the app that isn't purely local
+is your account: signing up, logging in, and password reset are handled by
+**Firebase Authentication** (a Google service), described below. Everything
+else you type, import, or generate — your Profile, resumes, cover letters,
+and proposals — is stored only in the app's local storage on your own
+device. The developer never receives a copy of any of it. The other
+exceptions are the app's optional AI features and optional subscription,
+both described below.
+
+## Your account
+
+On first use, the app asks you to sign up with a name, email, and password,
+then complete a profile (work history, education, skills). Account creation,
+login, and password reset are handled by **Firebase Authentication**, a
+Google service — your email address and a securely-hashed credential are
+stored on Firebase's servers, not only on your device. This app's developer
+does not directly see your password (Firebase never exposes it to us in any
+form), but does have access, through the Firebase console, to the account's
+email address and sign-up date, the same way any app using a login system
+would.
+
+- Forgot your password? Use **Forgot password?** on the login screen — this
+  sends a real password-reset email via Firebase, the same as most apps
+  with accounts.
+- Logging out (Settings → Log Out) just returns you to the login screen; your
+  account and documents are untouched and you can log back in.
+- **Settings → Clear All Data** deletes your saved Profile and every
+  document on this device and signs you out, but does **not** delete the
+  underlying Firebase account itself — to remove that entirely, contact us
+  (see Contact below).
+- Your Profile (work history, education, skills) stays local exactly as
+  before — it is not stored by Firebase, and is only sent anywhere at all
+  if you explicitly use the job-description resume-tailoring feature (see
+  AI features below).
 
 ## What the app does
 
+- Asks you to create an account and complete a profile before first use.
 - Creates and edits resumes, cover letters, and proposals using built-in templates.
 - Imports an existing resume from a PDF you choose, to prefill the form.
 - Lets you add a photo to templates that support one.
@@ -30,7 +60,9 @@ suggestion, and only then.
   your own sensitive information.
 - Offers optional AI features (see below) to rewrite or draft resume, cover
   letter, and proposal content, and to generate a resume tailored to a job
-  description you paste in.
+  description from your saved profile.
+- Offers an optional Pro subscription (see below) that unlocks premium
+  templates and unlimited AI features.
 
 ## AI features (optional, requires internet)
 
@@ -49,15 +81,36 @@ practices; see Groq's privacy policy for how they handle requests on their
 end.
 
 The "Profile" used to power job-description tailoring is stored locally the
-same way every other document in this app is — there's no account or login
-involved, and it's only sent to Groq when you explicitly generate a tailored
-resume.
+same way every other document in this app is — separately from your account
+credentials, which Firebase handles as described above — and it's only sent
+to Groq when you explicitly generate a tailored resume.
+
+## Subscriptions (optional)
+
+The app offers an optional Pro subscription (monthly, yearly, or a one-time
+lifetime purchase) that unlocks premium templates and unlimited AI
+features. The free Basic plan remains fully usable without subscribing.
+
+Purchases are handled entirely by **Google Play Billing**, and subscription
+status is managed for us by **RevenueCat**, a third-party subscription
+platform. Neither we nor RevenueCat ever see your payment details (card
+number, etc.) — that's handled directly by Google Play. RevenueCat receives
+purchase and entitlement data (which plan you're on, renewal dates) tied to
+an anonymous identifier, not your resume content, account, or profile. You
+can review or cancel a subscription any time from the Google Play Store's
+own subscriptions page, and restore a prior purchase from Settings →
+Manage Subscription.
 
 ## Data we collect
 
-**None, beyond what's described in AI features above.** Specifically:
+**Beyond your account, nothing leaves your device except what's described in
+AI features and Subscriptions above.** Specifically:
 
-- No account, name, email, or password is collected — there's nothing to sign up for.
+- Your account email and a securely-hashed credential are stored by Firebase
+  Authentication (Google) to make sign-up/login/password-reset work — this
+  app's developer does not directly store or see your password. Your
+  Profile (name, work history, education, skills, etc.) is separate from
+  your account and stored locally only.
 - No analytics, tracking, or advertising software is included in this app.
 - No crash-reporting or usage-monitoring service is integrated.
 - The resume, cover letter, and proposal content you write, any PDF you
@@ -79,23 +132,31 @@ with.
 
 ## Third parties
 
-We don't sell, rent, or share your information with anyone, and there's no
-server of ours storing it. Two pieces of third-party code are involved:
-Google's ML Kit translation library, which runs translation on-device after
-its language model is downloaded (your resume text is not sent to Google to
-be translated); and Groq's AI API, used only when you tap an AI feature, as
-described above.
+We don't sell, rent, or share your information with anyone. We do rely on a
+few third-party services to run parts of the app: **Firebase Authentication**
+(Google), which stores your account email and hashed credential and handles
+sign-up/login/password-reset, as described above; Google's ML Kit
+translation library, which runs translation on-device after its language
+model is downloaded (your resume text is not sent to Google to be
+translated); Groq's AI API, used only when you tap an AI feature, as
+described above; and, only if you subscribe, Google Play Billing and
+RevenueCat, as described in Subscriptions above.
 
 ## Storage, control & deletion
 
 - **Edit or delete** any single document from the Home or Favorites tab.
-- **Wipe everything at once** from Settings → Clear All Data.
-- **Uninstalling the app** removes all of it, the same way uninstalling any
-  app clears its local storage.
+- **Wipe your local data and sign out** from Settings → Clear All Data —
+  this removes your Profile and every document on this device, and signs
+  you out, but does not delete the Firebase account itself.
+- **Delete your account entirely**, including the email/credential stored by
+  Firebase: email us (see Contact below) and we'll remove it.
+- **Uninstalling the app** removes all local data, the same way uninstalling
+  any app clears its local storage, but does not delete the Firebase
+  account — use the option above for that.
 
-Because none of this data is transmitted to us, there's no separate
-"request my data" or "delete my account" process — the controls already live
-in the app itself.
+Your document content never reaches us, so for everything except your
+account there's no separate "request my data" process needed — those
+controls already live in the app itself.
 
 ## Children's privacy
 

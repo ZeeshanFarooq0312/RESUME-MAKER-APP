@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/document_entry.dart';
 import '../models/template_kind.dart';
+import '../services/ai_usage_tracker.dart';
 import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
 import '../services/profile_repository.dart';
@@ -20,6 +21,9 @@ const _templateTitles = {
   ResumeTemplate.technical: 'Technical',
   ResumeTemplate.simpleBold: 'Simple Bold',
   ResumeTemplate.harvard: 'Harvard',
+  ResumeTemplate.creative: 'Creative',
+  ResumeTemplate.elegant: 'Elegant',
+  ResumeTemplate.timeline: 'Timeline',
 };
 
 /// Paste a job description + pick a template, and let AI tailor the user's
@@ -97,6 +101,7 @@ class _AiResumeGeneratorScreenState extends State<AiResumeGeneratorScreen> {
         jobDescription: jd,
         jobTitleOverride: _jobTitleOverride.text.trim().isEmpty ? null : _jobTitleOverride.text.trim(),
       );
+      await AiUsageTracker.recordUsage();
 
       final entry = DocumentEntry(
         id: _uuid.v4(),

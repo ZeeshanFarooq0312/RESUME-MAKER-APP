@@ -3,9 +3,11 @@ import '../data/sample_documents.dart';
 import '../models/cover_letter_data.dart';
 import '../models/document_entry.dart';
 import '../models/template_kind.dart';
+import '../services/subscription_repository.dart';
 import '../theme/app_theme.dart';
-import '../widgets/template_thumbnail.dart';
+import '../widgets/template_card.dart';
 import 'cover_letter_preview_screen.dart';
+import 'paywall_screen.dart';
 
 export '../models/template_kind.dart' show CoverLetterTemplate;
 
@@ -26,28 +28,39 @@ class CoverLetterTemplateScreen extends StatelessWidget {
           mainAxisSpacing: 16,
           childAspectRatio: 0.78,
           children: [
-            _TemplateCard(
-              title: 'Classic',
-              template: CoverLetterTemplate.classic,
-              onTap: () => _openPreview(context, CoverLetterTemplate.classic),
-            ),
-            _TemplateCard(
-              title: 'Modern',
-              template: CoverLetterTemplate.modern,
-              onTap: () => _openPreview(context, CoverLetterTemplate.modern),
-            ),
-            _TemplateCard(
-              title: 'Minimal',
-              template: CoverLetterTemplate.minimal,
-              onTap: () => _openPreview(context, CoverLetterTemplate.minimal),
-            ),
+            _card(context, title: 'Classic', isPremium: false, template: CoverLetterTemplate.classic),
+            _card(context, title: 'Modern', isPremium: true, template: CoverLetterTemplate.modern),
+            _card(context, title: 'Minimal', isPremium: true, template: CoverLetterTemplate.minimal),
+            _card(context, title: 'Bold', isPremium: true, template: CoverLetterTemplate.bold),
+            _card(context, title: 'Formal', isPremium: true, template: CoverLetterTemplate.formal),
           ],
         ),
       ),
     );
   }
 
-  void _openPreview(BuildContext context, CoverLetterTemplate template) {
+  Widget _card(
+    BuildContext context, {
+    required String title,
+    required bool isPremium,
+    required CoverLetterTemplate template,
+  }) {
+    return TemplateCard(
+      kind: DocumentKind.coverLetter,
+      template: template,
+      title: title,
+      badgeText: isPremium ? 'PRO' : null,
+      badgeBackgroundColor: AppColors.primaryLight.withValues(alpha: 0.7),
+      badgeTextColor: AppColors.slate900,
+      onTap: () => _openPreview(context, template, isPremium),
+    );
+  }
+
+  void _openPreview(BuildContext context, CoverLetterTemplate template, bool isPremium) {
+    if (isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic) {
+      _showUpgradeDialog(context);
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -66,50 +79,23 @@ class CoverLetterTemplateScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-class _TemplateCard extends StatelessWidget {
-  final String title;
-  final CoverLetterTemplate template;
-  final VoidCallback onTap;
-
-  const _TemplateCard({required this.title, required this.template, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE1E4E8)),
-        ),
-        child: Column(
-          children: [
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.slate100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: TemplateThumbnail(kind: DocumentKind.coverLetter, template: template),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleLarge,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
+  void _showUpgradeDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Premium template'),
+        content: const Text('This template is available on Pro. Upgrade to unlock it.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
+            },
+            child: const Text('View Plans'),
+          ),
+        ],
       ),
     );
   }

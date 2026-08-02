@@ -4,6 +4,9 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    // Reads android/app/google-services.json (added once the Firebase
+    // project exists) to configure the Firebase SDKs at build time.
+    id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -59,6 +62,10 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }

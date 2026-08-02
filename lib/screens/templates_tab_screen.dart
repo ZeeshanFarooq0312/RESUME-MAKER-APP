@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../data/sample_documents.dart';
 import '../models/document_entry.dart';
-import '../theme/app_theme.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/filter_chip_row.dart';
 import '../widgets/pill_search_field.dart';
-import '../widgets/template_thumbnail.dart';
+import '../widgets/template_card.dart';
 import 'cover_letter_form_screen.dart';
 import 'cover_letter_preview_screen.dart';
 import 'cover_letter_template_screen.dart';
@@ -130,88 +130,34 @@ class _TemplatesTabScreenState extends State<TemplatesTabScreen> {
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: GridView.builder(
-                  itemCount: options.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.78,
-                  ),
-                  itemBuilder: (context, i) {
-                    final option = options[i];
-                    return _TemplateCard(option: option, onTap: () => _openTemplate(option));
-                  },
-                ),
+                child: options.isEmpty
+                    ? const EmptyState(
+                        icon: Icons.search_off,
+                        title: 'No templates found',
+                        message: 'Try a different search term or filter.',
+                      )
+                    : GridView.builder(
+                        itemCount: options.length,
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 0.78,
+                        ),
+                        itemBuilder: (context, i) {
+                          final option = options[i];
+                          return TemplateCard(
+                            kind: option.kind,
+                            template: option.template,
+                            title: option.title,
+                            badgeText: option.kind.label,
+                            onTap: () => _openTemplate(option),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TemplateCard extends StatelessWidget {
-  final _TemplateOption option;
-  final VoidCallback onTap;
-  const _TemplateCard({required this.option, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE7E5F3)),
-        ),
-        child: Column(
-          children: [
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.slate100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: TemplateThumbnail(kind: option.kind, template: option.template),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      option.title,
-                      style: Theme.of(context).textTheme.titleLarge,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      option.kind.label,
-                      style: const TextStyle(
-                          fontSize: 9.5, fontWeight: FontWeight.w600, color: AppColors.primary),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );

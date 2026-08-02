@@ -3,6 +3,7 @@ import '../models/document_entry.dart';
 import '../services/documents_repository.dart';
 import '../theme/app_theme.dart';
 import '../widgets/document_card.dart';
+import '../widgets/empty_state.dart';
 import 'cover_letter_form_screen.dart';
 import 'form_screen.dart';
 import 'proposal_form_screen.dart';
@@ -81,15 +82,10 @@ class _FavoritesTabScreenState extends State<FavoritesTabScreen> {
         child: favorites == null
             ? const Center(child: CircularProgressIndicator())
             : favorites.isEmpty
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'Tap the heart icon on a document to favorite it — it\'ll show up here.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.slate600, fontSize: 13),
-                      ),
-                    ),
+                ? const EmptyState(
+                    icon: Icons.favorite_border,
+                    title: 'No favorites yet',
+                    message: "Tap the heart icon on a document to favorite it — it'll show up here.",
                   )
                 : RefreshIndicator(
                     onRefresh: _load,

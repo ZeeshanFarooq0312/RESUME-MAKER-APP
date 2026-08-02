@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
 import '../data/skill_suggestions.dart';
 import '../models/resume_data.dart';
+import '../services/account_repository.dart';
 import '../services/profile_repository.dart';
 import '../theme/app_theme.dart';
 import '../widgets/accordion_section.dart';
 
-/// One-time local profile form: name, title, contact info, experience,
-/// education, and skills, saved under a single SharedPreferences key via
+/// Local profile form: name, title, contact info, experience, education,
+/// and skills, saved under a single SharedPreferences key via
 /// [ProfileRepository]. This is the source of truth the AI resume-tailoring
-/// feature reads from — there's no account/login involved, it's stored on
-/// this device exactly like every other document in the app.
+/// feature reads from — there's no server involved, it's stored on this
+/// device exactly like every other document in the app.
+///
+/// Doubles as the app's mandatory onboarding step when [onboarding] is true
+/// (shown right after Sign Up / Log In, before the user ever reaches Home):
+/// no back button, "Continue" instead of "Save Profile". Completing it only
+/// flips [AccountSession.onboardingComplete] rather than navigating directly
+/// — `AuthGate` is what's watching that and swaps itself to `AppShell` in
+/// place, consistent with how the rest of the auth flow avoids Navigator.
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool onboarding;
+  const ProfileScreen({super.key, this.onboarding = false});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -51,13 +60,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _onContinuePressed() async {
+    final data = _data;
+    if (data == null) return;
+    if (data.personalInfo.fullName.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add your name to continue.')),
+      );
+      return;
+    }
+    await _save();
+    await AccountRepository.markOnboardingComplete();
+    AccountSession.onboardingComplete.value = true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = _data;
+    final onboarding = widget.onboarding;
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _onBack),
-        title: const Text('My Profile'),
+        automaticallyImplyLeading: !onboarding,
+        leading: onboarding
+            ? null
+            : IconButton(icon: const Icon(Icons.arrow_back), onPressed: _onBack),
+        title: Text(onboarding ? 'Complete Your Profile' : 'My Profile'),
       ),
       body: SafeArea(
         child: data == null
@@ -72,10 +99,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      'Used only to power AI resume tailoring — stored locally, never uploaded '
-                      'except when you explicitly generate a tailored resume.',
-                      style: TextStyle(color: AppColors.slate800, fontSize: 12.5, height: 1.4),
+                    child: Text(
+                      onboarding
+                          ? 'One-time setup — this powers AI resume tailoring later on. Stored '
+                              'only on this device, never uploaded except when you explicitly '
+                              'generate a tailored resume.'
+                          : 'Used only to power AI resume tailoring — stored locally, never uploaded '
+                              'except when you explicitly generate a tailored resume.',
+                      style: const TextStyle(color: AppColors.slate800, fontSize: 12.5, height: 1.4),
                     ),
                   ),
                   AccordionSection(
@@ -98,8 +129,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _onSavePressed,
-                    child: const Text('Save Profile'),
+                    onPressed: onboarding ? _onContinuePressed : _onSavePressed,
+                    child: Text(onboarding ? 'Continue' : 'Save Profile'),
                   ),
                 ),
               ),

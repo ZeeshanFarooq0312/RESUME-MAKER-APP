@@ -26,6 +26,9 @@ const _templateTitles = {
   ResumeTemplate.technical: 'Technical Resume',
   ResumeTemplate.simpleBold: 'Simple Bold Resume',
   ResumeTemplate.harvard: 'Harvard Resume',
+  ResumeTemplate.creative: 'Creative Resume',
+  ResumeTemplate.elegant: 'Elegant Resume',
+  ResumeTemplate.timeline: 'Timeline Resume',
 };
 
 class PreviewScreen extends StatefulWidget {
@@ -292,9 +295,15 @@ class _PreviewScreenState extends State<PreviewScreen> {
             top: false,
             child: Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: Colors.white,
-                border: Border(top: BorderSide(color: Color(0xFFE1E4E8))),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1A1030).withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, -6),
+                  ),
+                ],
               ),
               child: widget.isSample
                   ? SizedBox(

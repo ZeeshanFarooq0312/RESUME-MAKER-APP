@@ -6,11 +6,13 @@ import 'package:uuid/uuid.dart';
 import '../data/skill_suggestions.dart';
 import '../models/document_entry.dart';
 import '../models/resume_data.dart';
+import '../services/ai_usage_tracker.dart';
 import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/accordion_section.dart';
 import '../widgets/ai_action_button.dart';
+import 'paywall_screen.dart';
 import 'preview_screen.dart';
 import 'template_screen.dart';
 
@@ -23,6 +25,27 @@ void _showAiNotConfiguredDialog(BuildContext context) {
       title: const Text('AI features not set up'),
       content: const Text("AI features aren't set up on this build. Ask the developer to configure a Groq API key."),
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+    ),
+  );
+}
+
+void _showAiLimitReachedDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Daily AI limit reached'),
+      content: const Text(
+          "You've used all your AI generations for today. Upgrade for a higher daily limit."),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
+          },
+          child: const Text('View Plans'),
+        ),
+      ],
     ),
   );
 }
@@ -279,6 +302,11 @@ class _SummaryFieldState extends State<_SummaryField> {
       _showAiNotConfiguredDialog(context);
       return;
     }
+    if (!await AiUsageTracker.canUseAi()) {
+      if (mounted) _showAiLimitReachedDialog(context);
+      return;
+    }
+    if (!mounted) return;
     final info = widget.data.personalInfo;
     if (info.jobTitle.trim().isEmpty && widget.data.experience.isEmpty) {
       _showAiErrorSnackBar(context, 'Add a job title or work experience first so AI has something to summarize.');
@@ -287,6 +315,7 @@ class _SummaryFieldState extends State<_SummaryField> {
     setState(() => _aiBusy = true);
     try {
       final result = await GroqService.generateSummary(context: widget.data);
+      await AiUsageTracker.recordUsage();
       final previous = _controller.text;
       setState(() {
         _controller.text = result;
@@ -396,6 +425,11 @@ class _ExperienceCardState extends State<_ExperienceCard> {
       _showAiNotConfiguredDialog(context);
       return;
     }
+    if (!await AiUsageTracker.canUseAi()) {
+      if (mounted) _showAiLimitReachedDialog(context);
+      return;
+    }
+    if (!mounted) return;
     if (_description.text.trim().isEmpty) return;
     setState(() => _aiBusy = true);
     try {
@@ -403,6 +437,7 @@ class _ExperienceCardState extends State<_ExperienceCard> {
         currentText: _description.text,
         roleContext: '${widget.entry.role} at ${widget.entry.company}',
       );
+      await AiUsageTracker.recordUsage();
       final previous = _description.text;
       setState(() {
         _description.text = result;

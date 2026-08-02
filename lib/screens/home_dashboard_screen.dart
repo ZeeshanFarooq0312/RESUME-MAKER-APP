@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/document_entry.dart';
 import '../models/resume_data.dart';
+import '../services/account_repository.dart';
+import '../services/ai_usage_tracker.dart';
 import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
 import '../services/profile_repository.dart';
 import '../services/resume_pdf_importer.dart';
 import '../theme/app_theme.dart';
 import '../widgets/document_card.dart';
+import '../widgets/empty_state.dart';
 import 'ai_resume_generator_screen.dart';
 import 'cover_letter_form_screen.dart';
 import 'form_screen.dart';
+import 'paywall_screen.dart';
 import 'profile_screen.dart';
 import 'proposal_form_screen.dart';
 
@@ -26,6 +30,7 @@ class HomeDashboardScreen extends StatefulWidget {
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   List<DocumentEntry>? _entries;
   bool _importing = false;
+  late final _account = AccountRepository.currentAccount();
 
   @override
   void initState() {
@@ -136,7 +141,11 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
-  Future<void> _onGenerateFromJobDescription() async {
+  /// Shared guard for every AI-resume-generation entry point: confirms a
+  /// Groq key is configured and a Profile exists (offering to set one up if
+  /// not) before letting the caller navigate to its own generator screen.
+  /// Returns true only if both checks passed and the caller should proceed.
+  Future<bool> _checkAiGuards() async {
     if (!GroqService.isConfigured) {
       showDialog(
         context: context,
@@ -147,18 +156,18 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
         ),
       );
-      return;
+      return false;
     }
     final hasProfile = await ProfileRepository.exists();
-    if (!mounted) return;
+    if (!mounted) return false;
     if (!hasProfile) {
       final setUp = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('Set up your profile first'),
           content: const Text(
-              'AI resume tailoring uses your saved profile (work history, education, skills) as '
-              'the source of truth. Add it once and reuse it for every tailored resume.'),
+              'AI resume generation uses your saved profile (work history, education, skills) as '
+              'the source of truth. Add it once and reuse it for every AI-generated resume.'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
             ElevatedButton(
@@ -171,8 +180,38 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       if (setUp == true && mounted) {
         await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
       }
-      return;
+      return false;
     }
+    if (!await AiUsageTracker.canUseAi()) {
+      if (mounted) await _showAiLimitReachedDialog();
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _showAiLimitReachedDialog() {
+    return showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Daily AI limit reached'),
+        content: const Text(
+            "You've used all your AI generations for today. Upgrade for a higher daily limit."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
+            },
+            child: const Text('View Plans'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _onGenerateFromJobDescription() async {
+    if (!await _checkAiGuards()) return;
     if (!mounted) return;
     await Navigator.push(context, MaterialPageRoute(builder: (_) => const AiResumeGeneratorScreen()));
     _load();
@@ -230,7 +269,22 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
-                    Text('Resume Builder', style: Theme.of(context).textTheme.headlineMedium),
+                    const Text(
+                      'RESUME BUILDER',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _account?['fullName']?.isNotEmpty == true
+                          ? 'Hi, ${_account!['fullName']}'
+                          : 'Welcome back',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
                     const SizedBox(height: 16),
                     Container(
                       width: double.infinity,
@@ -242,6 +296,13 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
                       child: const Row(
                         children: [
@@ -301,14 +362,26 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     const SizedBox(height: 10),
                     _AiGenerateButton(onTap: _onGenerateFromJobDescription),
                     const SizedBox(height: 28),
-                    Text('My Documents', style: Theme.of(context).textTheme.titleLarge),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('My Documents', style: Theme.of(context).textTheme.titleLarge),
+                        if (entries.isNotEmpty)
+                          Text(
+                            '${entries.length}',
+                            style: const TextStyle(
+                                color: AppColors.slate400, fontWeight: FontWeight.w600, fontSize: 13),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
                     if (entries.isEmpty)
                       const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Text(
-                          'No documents yet — create one above to get started.',
-                          style: TextStyle(color: AppColors.slate600, fontSize: 13),
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: EmptyState(
+                          icon: Icons.description_outlined,
+                          title: 'No documents yet',
+                          message: 'Create a resume, cover letter, or proposal above to get started.',
                         ),
                       )
                     else
@@ -340,11 +413,7 @@ class _QuickActionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE7E5F3)),
-        ),
+        decoration: AppDecorations.card(),
         child: Column(
           children: [
             Icon(icon, color: AppColors.primary, size: 22),
