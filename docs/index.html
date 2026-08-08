@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Resume Builder</title>
+<style>
+  :root {
+    --ink: #14121F;
+    --slate900: #221F35;
+    --gold: #FFB454;
+    --gold-deep: #E8963A;
+    --paper: #ffffff;
+    --text: #2b2836;
+    --muted: #6c6880;
+    --border: #EDEBF5;
+    --chip: #F1EFFA;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    background: #faf9fd;
+    line-height: 1.65;
+  }
+  .hero {
+    background: linear-gradient(135deg, var(--ink), var(--slate900));
+    color: #fff;
+    padding: 56px 24px 44px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before, .hero::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: .35;
+  }
+  .hero::before { width: 220px; height: 220px; background: var(--gold); top: -80px; right: -40px; }
+  .hero::after  { width: 200px; height: 200px; background: #6c5ce7; bottom: -90px; left: -50px; }
+  .badge {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold), var(--gold-deep));
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 26px; margin-bottom: 18px; position: relative; z-index: 1;
+  }
+  .hero h1 { margin: 0; font-size: 28px; font-weight: 700; position: relative; z-index: 1; }
+  .hero .eff { margin: 10px 0 0; color: rgba(255,255,255,.7); font-size: 14px; position: relative; z-index: 1; }
+  main {
+    max-width: 760px;
+    margin: -24px auto 0;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px 28px 40px;
+    position: relative;
+    box-shadow: 0 12px 40px rgba(20,18,31,.06);
+  }
+  h2 {
+    font-size: 20px;
+    margin: 32px 0 10px;
+    color: var(--ink);
+    border-left: 4px solid var(--gold);
+    padding-left: 12px;
+  }
+  h2:first-of-type { margin-top: 4px; }
+  h3 { font-size: 16px; margin: 22px 0 6px; color: var(--ink); }
+  p, li { font-size: 15.5px; }
+  a { color: var(--gold-deep); text-decoration: none; font-weight: 600; }
+  a:hover { text-decoration: underline; }
+  ul { padding-left: 20px; }
+  li { margin: 6px 0; }
+  .callout {
+    background: #FFF7EC;
+    border: 1px solid #FBE3BE;
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin: 20px 0;
+  }
+  .callout h3 { margin-top: 0; }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 40px;
+    margin: 12px 0;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 0;
+    width: 26px; height: 26px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-deep));
+    color: var(--ink); font-weight: 700; font-size: 13px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  table {
+    width: 100%; border-collapse: collapse; margin: 14px 0;
+    font-size: 14.5px;
+  }
+  th, td { text-align: left; padding: 10px 12px; border: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--chip); color: var(--ink); }
+  .overflow { overflow-x: auto; }
+  footer {
+    text-align: center; color: var(--muted); font-size: 13px;
+    padding: 28px 16px 48px;
+  }
+  .email-chip {
+    display: inline-block;
+    background: var(--chip);
+    border-radius: 10px;
+    padding: 4px 10px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  @media (max-width: 520px) {
+    main { margin: -18px 12px 0; padding: 24px 18px 32px; border-radius: 16px; }
+    .hero h1 { font-size: 23px; }
+  }
+</style>
+</head>
+<body>
+  <div class="hero">
+    <div class="badge">📄</div>
+    <h1>Privacy Policy</h1>
+    <p class="eff">Resume Builder — CV, Cover Letter &amp; Proposal · Effective July 30, 2026</p>
+  </div>
+
+  <main>
+    <p>
+      Resume Builder (listed on Google Play as “Resume Builder - CV, Cover Letter &amp;
+      Proposal”) is a resume, cover letter, and proposal builder that stores everything
+      locally by default. This document explains what happens to your information when
+      you use it.
+    </p>
+
+    <h2>Overview</h2>
+    <p>
+      The app has no backend server of its own for your resume, cover letter, or proposal
+      content — there is no “cloud” run by us for that data, because none exists. The one
+      part of the app that isn’t purely local is your account: signing up, logging in, and
+      password reset are handled by <strong>Firebase Authentication</strong> (a Google
+      service), described below. Everything else you type, import, or generate — your
+      Profile, resumes, cover letters, and proposals — is stored only in the app’s local
+      storage on your own device. The developer never receives a copy of any of it. The
+      other exceptions are the app’s optional AI features and optional subscription, both
+      described below.
+    </p>
+
+    <h2>Your account</h2>
+    <p>
+      On first use, the app asks you to sign up with a name, email, and password, then
+      complete a profile (work history, education, skills). Account creation, login, and
+      password reset are handled by <strong>Firebase Authentication</strong>, a Google
+      service — your email address and a securely-hashed credential are stored on Firebase’s
+      servers, not only on your device. The developer does not directly see your password
+      (Firebase never exposes it to us), but does have access, through the Firebase console,
+      to the account’s email address and sign-up date.
+    </p>
+    <ul>
+      <li>Forgot your password? Use <strong>Forgot password?</strong> on the login screen — this sends a real password-reset email via Firebase.</li>
+      <li>Logging out (Settings → Log Out) just returns you to the login screen; your account and documents are untouched.</li>
+      <li><strong>Settings → Clear all data</strong> deletes your saved Profile and every document on this device and signs you out, but does <strong>not</strong> delete the underlying Firebase account.</li>
+      <li><strong>Settings → Delete account</strong> permanently deletes your account and all its data (see “Account &amp; data deletion” below).</li>
+    </ul>
+
+    <h2>What the app does</h2>
+    <ul>
+      <li>Asks you to create an account and complete a profile before first use.</li>
+      <li>Creates and edits resumes, cover letters, and proposals using built-in templates.</li>
+      <li>Imports an existing resume from a PDF you choose, to prefill the form.</li>
+      <li>Lets you add a photo to templates that support one.</li>
+      <li>Exports your finished document as a PDF and hands it to your phone’s own share sheet.</li>
+      <li>Translates a resume’s text into another language, using an on-device translation model.</li>
+      <li>Blocks screenshots while a document is open for preview, as a safeguard for your sensitive information.</li>
+      <li>Offers optional AI features to rewrite or draft content and to generate a resume tailored to a job description.</li>
+      <li>Offers an optional Pro subscription that unlocks premium templates and unlimited AI features.</li>
+    </ul>
+
+    <h2>AI features (optional, requires internet)</h2>
+    <p>
+      The app includes optional AI-assisted writing features. These are <strong>entirely
+      opt-in</strong> — nothing is sent anywhere unless you tap an AI button — and require
+      an internet connection. When you use one, the relevant text (for example a single
+      bullet point, or your saved Profile’s job title/skills/experience plus a pasted job
+      description) is sent to <strong>Groq</strong>, a third-party AI provider, to generate
+      a suggestion. Your contact details — email, phone, and address — are not included in
+      AI prompts. This app doesn’t control Groq’s own retention practices; see Groq’s
+      privacy policy for how they handle requests on their end.
+    </p>
+
+    <h2>Subscriptions (optional)</h2>
+    <p>
+      The app offers an optional Pro subscription (monthly or yearly) that unlocks premium
+      templates and unlimited AI features. The free plan remains fully usable without
+      subscribing. Purchases are handled entirely by <strong>Google Play Billing</strong>,
+      and subscription status is managed for us by <strong>RevenueCat</strong>, a
+      third-party subscription platform. Neither we nor RevenueCat ever see your payment
+      details — that’s handled directly by Google Play. RevenueCat receives purchase and
+      entitlement data (which plan you’re on, renewal dates) tied to an anonymous
+      identifier, not your resume content, account, or profile. You can review or cancel a
+      subscription any time from the Google Play Store’s subscriptions page, and restore a
+      prior purchase from Settings → Restore purchases.
+    </p>
+
+    <h2>Data we collect</h2>
+    <p><strong>Beyond your account, nothing leaves your device except what’s described in AI features and Subscriptions above.</strong> Specifically:</p>
+    <ul>
+      <li>Your account email and a securely-hashed credential are stored by Firebase Authentication (Google) to make sign-up/login/password-reset work — the developer does not directly store or see your password. Your Profile is separate from your account and stored locally only.</li>
+      <li>No analytics, tracking, or advertising software is included in this app.</li>
+      <li>No crash-reporting or usage-monitoring service is integrated.</li>
+      <li>The content you write, any PDF you import, and any photo you pick are processed and stored entirely on your device, except for text you explicitly send via an AI feature.</li>
+    </ul>
+
+    <h2>Permissions explained</h2>
+    <div class="overflow">
+      <table>
+        <thead>
+          <tr><th>Permission</th><th>What it’s for</th><th>Leaves your device?</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Internet</td><td>A one-time download of a Google ML Kit translation model the first time you pick a language; and, only if you use an AI feature, sending your prompt text to Groq.</td><td>Only for AI features you explicitly use</td></tr>
+          <tr><td>Files / storage</td><td>Lets you choose an existing resume PDF so the app can read and prefill your details.</td><td>Stays local</td></tr>
+          <tr><td>Photos</td><td>Lets you pick a profile photo for templates that include one.</td><td>Stays local</td></tr>
+          <tr><td>Screenshot blocking</td><td>Prevents other apps from capturing a screenshot while a document is open for preview.</td><td>Nothing collected</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Third parties</h2>
+    <p>
+      We don’t sell, rent, or share your information with anyone. We rely on a few
+      third-party services to run parts of the app: <strong>Firebase Authentication</strong>
+      (Google), which stores your account email and hashed credential; Google’s ML Kit
+      translation library, which runs on-device; <strong>Groq</strong>’s AI API, used only
+      when you tap an AI feature; and, only if you subscribe, <strong>Google Play
+      Billing</strong> and <strong>RevenueCat</strong>.
+    </p>
+
+    <h2>Account &amp; data deletion</h2>
+    <div class="callout">
+      <h3>How to delete your account and all associated data</h3>
+      <p>You can permanently delete your account, including the email and credential stored by Firebase, directly inside the app:</p>
+      <ol class="steps">
+        <li>Open <strong>Resume Builder</strong> and sign in.</li>
+        <li>Go to the <strong>Settings</strong> tab.</li>
+        <li>Tap <strong>Delete account</strong>, confirm your password, and tap <strong>Delete</strong>.</li>
+      </ol>
+      <p>
+        This immediately and permanently removes your Firebase account and wipes all local
+        data (Profile, resumes, cover letters, proposals) from the device. This action
+        cannot be undone.
+      </p>
+      <p style="margin-bottom:0;">
+        If you can’t access the app, email us at
+        <span class="email-chip">zeeshanfarooq4656@gmail.com</span>
+        from the address tied to your account and we will delete your account and any
+        associated data within 30 days. We retain no resume content on our servers — only
+        the Firebase account email/credential, which the request removes.
+      </p>
+    </div>
+
+    <h2>Children’s privacy</h2>
+    <p>
+      This app is not directed at children under 13. Since it doesn’t collect personal
+      information from any user for its own use, it doesn’t knowingly collect personal
+      information from children either.
+    </p>
+
+    <h2>Changes to this policy</h2>
+    <p>
+      If this policy changes in a way that affects what the app does with your information,
+      the effective date above will be updated to reflect it.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions about this policy or how the app handles information can be sent to
+      <a href="mailto:zeeshanfarooq4656@gmail.com">zeeshanfarooq4656@gmail.com</a>.
+    </p>
+  </main>
+
+  <footer>
+    Resume Builder · Privacy Policy · Last updated July 30, 2026
+  </footer>
+</body>
+</html>
