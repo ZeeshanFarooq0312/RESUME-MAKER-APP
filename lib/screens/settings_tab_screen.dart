@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/account_repository.dart';
 import '../services/subscription_repository.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shimmer_sweep.dart';
 import 'paywall_screen.dart';
 import 'profile_screen.dart';
+
+/// Public URL of the hosted privacy policy (GitHub Pages, docs/ folder).
+/// Same page Google Play links to for the Privacy Policy and account-deletion
+/// requirements, kept in one place so the in-app link can't drift from it.
+const _privacyPolicyUrl = 'https://zeeshanfarooq0312.github.io/RESUME-MAKER-APP/';
 
 class SettingsTabScreen extends StatefulWidget {
   const SettingsTabScreen({super.key});
@@ -55,6 +61,16 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
           const SnackBar(content: Text("Couldn't restore purchases. Please try again.")),
         );
       }
+    }
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    final uri = Uri.parse(_privacyPolicyUrl);
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't open the privacy policy.")),
+      );
     }
   }
 
@@ -133,6 +149,13 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
                   onTap: _restore,
                 ),
               ],
+              const _RowDivider(),
+              _SettingsRow(
+                icon: Icons.privacy_tip_outlined,
+                title: 'Privacy Policy',
+                subtitle: 'How your data is handled',
+                onTap: _openPrivacyPolicy,
+              ),
             ]),
             const SizedBox(height: 22),
             SizedBox(
