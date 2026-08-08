@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App "ink" brand color — matches AppColors.ink so the native launch
+         window and the Flutter splash are the same color (no white flash). -->
+    <color name="ink">#FF14121F</color>
+</resources>

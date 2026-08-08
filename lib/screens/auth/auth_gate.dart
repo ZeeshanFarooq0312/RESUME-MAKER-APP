@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../services/account_repository.dart';
 import '../app_shell.dart';
-import '../profile_screen.dart';
+import '../onboarding/onboarding_flow.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
 
@@ -72,7 +72,7 @@ class _AuthGateState extends State<AuthGate> {
           valueListenable: AccountSession.onboardingComplete,
           builder: (context, complete, __) {
             if (complete == null) return _loading;
-            return complete ? const AppShell() : const ProfileScreen(onboarding: true);
+            return complete ? const AppShell() : const OnboardingFlow();
           },
         );
       },

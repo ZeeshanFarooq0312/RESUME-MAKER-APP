@@ -362,4 +362,55 @@ Hard rules:
       );
     });
   }
+
+  /// Extracts structured profile data from the raw text of an uploaded
+  /// resume (e.g. via [ResumePdfImporter.pickAndExtractText]), for the
+  /// "fill my profile from an existing resume" onboarding path. Unlike
+  /// [generateTailoredResume] there's no existing profile to reconcile
+  /// against — this is the very first import — so the model's output is
+  /// used as-is. That's safe here specifically because the caller always
+  /// routes the result through [ProfileScreen] for the user to review and
+  /// correct before anything is saved, unlike the tailoring flow which can
+  /// silently overwrite an already-trusted profile.
+  static Future<ResumeData> extractProfileFromResumeText(String resumeText) {
+    return _guard(() async {
+      final content = await _complete(
+        jsonMode: true,
+        temperature: 0.2,
+        systemPrompt: '''
+You are a resume-parsing assistant. You will be given the raw text extracted from a candidate's
+resume PDF (formatting/line breaks may be imperfect since it comes from automated text
+extraction). Return a single JSON object with exactly this shape, using only information present
+in the text — never invent employers, dates, schools, or skills that aren't there:
+{"personalInfo": {"fullName": "", "jobTitle": "", "email": "", "phone": "", "location": "", "summary": ""},
+ "experience": [{"company": "", "role": "", "startDate": "", "endDate": "", "description": ""}],
+ "education": [{"school": "", "degree": "", "startDate": "", "endDate": ""}],
+ "skills": [""]}
+
+Rules:
+1. "jobTitle" is the candidate's current/most recent role headline, not a section header.
+2. Keep dates in whatever short form the resume uses (e.g. "Jan 2022", "2020"); use "Present" for
+   a current/ongoing entry's endDate.
+3. "description" should summarize the key responsibilities/achievements for that role in 1-3
+   sentences, based only on what's in the text.
+4. "skills" should be a flat list of individual skills/technologies, not a paragraph.
+5. Leave a field empty ("" or []) rather than guessing if it isn't clearly present in the text.
+''',
+        userPrompt: 'Resume text:\n$resumeText',
+      );
+
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(content) as Map<String, dynamic>;
+      } catch (_) {
+        throw AiServiceException("Couldn't understand the AI's response — please try again.");
+      }
+
+      try {
+        return ResumeData.fromJson(parsed);
+      } catch (_) {
+        throw AiServiceException("Couldn't understand the AI's response — please try again.");
+      }
+    });
+  }
 }

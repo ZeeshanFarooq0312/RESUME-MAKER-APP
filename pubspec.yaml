@@ -1,7 +1,7 @@
 name: resume_builder
 description: "Resume Builder - offline CV, cover letter & proposal maker with PDF export"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+5
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -35,3 +35,14 @@ flutter:
   assets:
     - assets/fonts/
     - assets/icon/icon_master.png
+  # UI fonts bundled locally (variable TTFs — Flutter selects the weight along
+  # the wght axis) so text renders instantly and offline. Previously these
+  # came from google_fonts' runtime fetching, which stalled the first frame
+  # on slow networks.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
+    - family: Fraunces
+      fonts:
+        - asset: assets/fonts/Fraunces.ttf

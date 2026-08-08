@@ -20,7 +20,12 @@ import '../widgets/accordion_section.dart';
 /// place, consistent with how the rest of the auth flow avoids Navigator.
 class ProfileScreen extends StatefulWidget {
   final bool onboarding;
-  const ProfileScreen({super.key, this.onboarding = false});
+  /// Pre-fills the form with already-extracted data (e.g. from the
+  /// "upload my resume" onboarding path) instead of loading the saved
+  /// profile — the user still reviews/edits every field before it's
+  /// actually saved via the normal Continue/Save flow below.
+  final ResumeData? initialData;
+  const ProfileScreen({super.key, this.onboarding = false, this.initialData});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -36,6 +41,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _load() async {
+    if (widget.initialData != null) {
+      if (mounted) setState(() => _data = widget.initialData);
+      return;
+    }
     final loaded = await ProfileRepository.load();
     if (mounted) setState(() => _data = loaded ?? ResumeData());
   }
@@ -100,12 +109,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      onboarding
-                          ? 'One-time setup — this powers AI resume tailoring later on. Stored '
-                              'only on this device, never uploaded except when you explicitly '
-                              'generate a tailored resume.'
-                          : 'Used only to power AI resume tailoring — stored locally, never uploaded '
-                              'except when you explicitly generate a tailored resume.',
+                      widget.initialData != null
+                          ? "Imported from your resume with AI — please review every field below "
+                              "before continuing. Automatic extraction isn't perfect."
+                          : onboarding
+                              ? 'One-time setup — this powers AI resume tailoring later on. Stored '
+                                  'only on this device, never uploaded except when you explicitly '
+                                  'generate a tailored resume.'
+                              : 'Used only to power AI resume tailoring — stored locally, never uploaded '
+                                  'except when you explicitly generate a tailored resume.',
                       style: const TextStyle(color: AppColors.slate800, fontSize: 12.5, height: 1.4),
                     ),
                   ),

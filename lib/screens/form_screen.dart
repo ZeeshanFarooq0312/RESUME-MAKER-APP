@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../data/skill_suggestions.dart';
 import '../models/document_entry.dart';
 import '../models/resume_data.dart';
+import '../models/template_kind.dart';
 import '../services/ai_usage_tracker.dart';
 import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
@@ -35,9 +36,10 @@ void _showAiLimitReachedDialog(BuildContext context) {
     builder: (_) => AlertDialog(
       title: const Text('Daily AI limit reached'),
       content: const Text(
-          "You've used all your AI generations for today. Upgrade for a higher daily limit."),
+          "You've used today's free AI generations. Upgrade to Pro for unlimited AI-powered "
+          'summaries, rewrites, cover letters, and resume generation.'),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Not now')),
         ElevatedButton(
           onPressed: () {
             Navigator.pop(context);
@@ -57,7 +59,12 @@ void _showAiErrorSnackBar(BuildContext context, String message) {
 class FormScreen extends StatefulWidget {
   final DocumentEntry? entry;
   final ResumeTemplate? initialTemplate;
-  const FormScreen({super.key, this.entry, this.initialTemplate});
+  /// Pre-fills a brand-new (non-[entry]) form with already-known data, e.g.
+  /// the user's saved Profile when they chose "Use My Profile" instead of
+  /// starting blank. Ignored when [entry] is set, since that already has
+  /// its own saved data.
+  final ResumeData? initialData;
+  const FormScreen({super.key, this.entry, this.initialTemplate, this.initialData});
 
   @override
   State<FormScreen> createState() => _FormScreenState();
@@ -65,8 +72,9 @@ class FormScreen extends StatefulWidget {
 
 class _FormScreenState extends State<FormScreen> {
   late final String _entryId = widget.entry?.id ?? _uuid.v4();
-  late final ResumeData data =
-      widget.entry != null ? ResumeData.fromJson(widget.entry!.payload) : ResumeData();
+  late final ResumeData data = widget.entry != null
+      ? ResumeData.fromJson(widget.entry!.payload)
+      : (widget.initialData ?? ResumeData());
 
   Future<void> _saveEntry() async {
     await DocumentsRepository.save(DocumentEntry(
@@ -95,7 +103,12 @@ class _FormScreenState extends State<FormScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => PreviewScreen(resumeData: data, template: template, documentId: _entryId),
+          builder: (_) => PreviewScreen(
+            resumeData: data,
+            template: template,
+            documentId: _entryId,
+            isPremium: template.isPremium,
+          ),
         ),
       );
     } else {

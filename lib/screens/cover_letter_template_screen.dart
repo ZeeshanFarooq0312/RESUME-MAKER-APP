@@ -3,11 +3,9 @@ import '../data/sample_documents.dart';
 import '../models/cover_letter_data.dart';
 import '../models/document_entry.dart';
 import '../models/template_kind.dart';
-import '../services/subscription_repository.dart';
 import '../theme/app_theme.dart';
 import '../widgets/template_card.dart';
 import 'cover_letter_preview_screen.dart';
-import 'paywall_screen.dart';
 
 export '../models/template_kind.dart' show CoverLetterTemplate;
 
@@ -28,11 +26,11 @@ class CoverLetterTemplateScreen extends StatelessWidget {
           mainAxisSpacing: 16,
           childAspectRatio: 0.78,
           children: [
-            _card(context, title: 'Classic', isPremium: false, template: CoverLetterTemplate.classic),
-            _card(context, title: 'Modern', isPremium: true, template: CoverLetterTemplate.modern),
-            _card(context, title: 'Minimal', isPremium: true, template: CoverLetterTemplate.minimal),
-            _card(context, title: 'Bold', isPremium: true, template: CoverLetterTemplate.bold),
-            _card(context, title: 'Formal', isPremium: true, template: CoverLetterTemplate.formal),
+            _card(context, title: 'Classic', template: CoverLetterTemplate.classic),
+            _card(context, title: 'Modern', template: CoverLetterTemplate.modern),
+            _card(context, title: 'Minimal', template: CoverLetterTemplate.minimal),
+            _card(context, title: 'Bold', template: CoverLetterTemplate.bold),
+            _card(context, title: 'Formal', template: CoverLetterTemplate.formal),
           ],
         ),
       ),
@@ -42,25 +40,20 @@ class CoverLetterTemplateScreen extends StatelessWidget {
   Widget _card(
     BuildContext context, {
     required String title,
-    required bool isPremium,
     required CoverLetterTemplate template,
   }) {
     return TemplateCard(
       kind: DocumentKind.coverLetter,
       template: template,
       title: title,
-      badgeText: isPremium ? 'PRO' : null,
+      badgeText: template.isPremium ? 'PRO' : null,
       badgeBackgroundColor: AppColors.primaryLight.withValues(alpha: 0.7),
       badgeTextColor: AppColors.slate900,
-      onTap: () => _openPreview(context, template, isPremium),
+      onTap: () => _openPreview(context, template),
     );
   }
 
-  void _openPreview(BuildContext context, CoverLetterTemplate template, bool isPremium) {
-    if (isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic) {
-      _showUpgradeDialog(context);
-      return;
-    }
+  void _openPreview(BuildContext context, CoverLetterTemplate template) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -72,30 +65,14 @@ class CoverLetterTemplateScreen extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (_) => CoverLetterPreviewScreen(
-                  data: data, template: template, documentId: documentId),
+                data: data,
+                template: template,
+                documentId: documentId,
+                isPremium: template.isPremium,
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _showUpgradeDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Premium template'),
-        content: const Text('This template is available on Pro. Upgrade to unlock it.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
-            },
-            child: const Text('View Plans'),
-          ),
-        ],
       ),
     );
   }

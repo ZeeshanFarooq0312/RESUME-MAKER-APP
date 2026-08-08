@@ -3,10 +3,8 @@ import '../data/sample_documents.dart';
 import '../models/document_entry.dart';
 import '../models/resume_data.dart';
 import '../models/template_kind.dart';
-import '../services/subscription_repository.dart';
 import '../theme/app_theme.dart';
 import '../widgets/template_card.dart';
-import 'paywall_screen.dart';
 import 'preview_screen.dart';
 
 export '../models/template_kind.dart' show ResumeTemplate;
@@ -28,18 +26,18 @@ class TemplateScreen extends StatelessWidget {
           mainAxisSpacing: 16,
           childAspectRatio: 0.78,
           children: [
-            _card(context, title: 'Classic', subtitle: 'ATS-friendly', isPremium: false, template: ResumeTemplate.classic),
-            _card(context, title: 'Modern', subtitle: 'Color sidebar + photo', isPremium: true, template: ResumeTemplate.modern),
-            _card(context, title: 'Minimal', subtitle: 'ATS-friendly', isPremium: false, template: ResumeTemplate.minimal),
-            _card(context, title: 'Professional', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.professional),
-            _card(context, title: 'Compact', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.compact),
-            _card(context, title: 'Executive', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.executive),
-            _card(context, title: 'Technical', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.technical),
-            _card(context, title: 'Simple Bold', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.simpleBold),
-            _card(context, title: 'Harvard', subtitle: 'ATS-friendly', isPremium: true, template: ResumeTemplate.harvard),
-            _card(context, title: 'Creative', subtitle: 'Bold color banner', isPremium: true, template: ResumeTemplate.creative),
-            _card(context, title: 'Elegant', subtitle: 'Editorial style', isPremium: true, template: ResumeTemplate.elegant),
-            _card(context, title: 'Timeline', subtitle: 'Visual work history', isPremium: true, template: ResumeTemplate.timeline),
+            _card(context, title: 'Classic', subtitle: 'ATS-friendly', template: ResumeTemplate.classic),
+            _card(context, title: 'Modern', subtitle: 'Color sidebar + photo', template: ResumeTemplate.modern),
+            _card(context, title: 'Minimal', subtitle: 'ATS-friendly', template: ResumeTemplate.minimal),
+            _card(context, title: 'Professional', subtitle: 'ATS-friendly', template: ResumeTemplate.professional),
+            _card(context, title: 'Compact', subtitle: 'ATS-friendly', template: ResumeTemplate.compact),
+            _card(context, title: 'Executive', subtitle: 'ATS-friendly', template: ResumeTemplate.executive),
+            _card(context, title: 'Technical', subtitle: 'ATS-friendly', template: ResumeTemplate.technical),
+            _card(context, title: 'Simple Bold', subtitle: 'ATS-friendly', template: ResumeTemplate.simpleBold),
+            _card(context, title: 'Harvard', subtitle: 'ATS-friendly', template: ResumeTemplate.harvard),
+            _card(context, title: 'Creative', subtitle: 'Bold color banner', template: ResumeTemplate.creative),
+            _card(context, title: 'Elegant', subtitle: 'Editorial style', template: ResumeTemplate.elegant),
+            _card(context, title: 'Timeline', subtitle: 'Visual work history', template: ResumeTemplate.timeline),
           ],
         ),
       ),
@@ -50,7 +48,6 @@ class TemplateScreen extends StatelessWidget {
     BuildContext context, {
     required String title,
     required String subtitle,
-    required bool isPremium,
     required ResumeTemplate template,
   }) {
     return TemplateCard(
@@ -58,18 +55,17 @@ class TemplateScreen extends StatelessWidget {
       template: template,
       title: title,
       subtitle: subtitle,
-      badgeText: isPremium ? 'PRO' : null,
+      badgeText: template.isPremium ? 'PRO' : null,
       badgeBackgroundColor: AppColors.primaryLight.withValues(alpha: 0.7),
       badgeTextColor: AppColors.slate900,
-      onTap: () => _openPreview(context, template, isPremium),
+      onTap: () => _openPreview(context, template),
     );
   }
 
-  void _openPreview(BuildContext context, ResumeTemplate template, bool isPremium) {
-    if (isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic) {
-      _showUpgradeDialog(context);
-      return;
-    }
+  /// Anyone can preview any template — free or Pro — with their own data.
+  /// The subscription gate only kicks in when they actually try to export/
+  /// download a Pro template, inside PreviewScreen's download button.
+  void _openPreview(BuildContext context, ResumeTemplate template) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -80,31 +76,15 @@ class TemplateScreen extends StatelessWidget {
           onUseTemplate: () => Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) =>
-                  PreviewScreen(resumeData: resumeData, template: template, documentId: documentId),
+              builder: (_) => PreviewScreen(
+                resumeData: resumeData,
+                template: template,
+                documentId: documentId,
+                isPremium: template.isPremium,
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _showUpgradeDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Premium template'),
-        content: const Text('This template is available on Pro. Upgrade to unlock it.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
-            },
-            child: const Text('View Plans'),
-          ),
-        ],
       ),
     );
   }

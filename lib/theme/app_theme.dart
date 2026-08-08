@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-/// Token names are kept stable from the previous slate/gold palette even
-/// though the hex values are now violet — every existing screen that
-/// references AppColors picks up the new look without being touched
-/// individually. `gold`/`goldLight`/`cream` are kept as aliases for the
-/// same reason; new code should prefer `primary`/`primaryLight`/`background`.
+/// Token names are kept stable across palette generations — every existing
+/// screen that references AppColors picks up the new look without being
+/// touched individually. This generation repoints `primary`/`primaryDark`/
+/// `primaryLight` from the old violet palette to the "ink" palette that's
+/// already used by the Paywall/Settings/Onboarding hero sections and the
+/// Home dashboard, so the entire app (including the signup/login gradient
+/// header in `AuthScaffold`) now shares one identity: near-black ink as the
+/// everyday UI color, with `accentGold` reserved as the one warm highlight
+/// for premium/AI moments (badges, CTAs on dark surfaces) — it would stop
+/// reading as special if it were used everywhere instead.
 class AppColors {
-  static const primary = Color(0xFF6C5DD3);
-  static const primaryDark = Color(0xFF4A3FA8);
-  static const primaryLight = Color(0xFFEDEAFB);
+  static const primary = Color(0xFF14121F);
+  static const primaryDark = Color(0xFF221F35);
+  static const primaryLight = Color(0xFFF1EFFA);
   static const background = Color(0xFFF7F7FB);
   static const danger = Color(0xFFE0455F);
 
@@ -19,14 +23,28 @@ class AppColors {
   static const slate400 = Color(0xFFA6A1BE);
   static const slate100 = Color(0xFFF1EFFA);
 
-  static const gold = primary;
-  static const goldLight = primaryLight;
+  /// True gold aliases (unlike `primary` above, these are NOT the ink
+  /// palette) — kept for any older call site still written as `gold`/
+  /// `goldLight` instead of `accentGold`/the tint below.
+  static const gold = accentGold;
+  static const goldLight = Color(0xFFFCEEDA);
   static const cream = background;
 
   /// The thin border color used under every card decoration below — kept
   /// as a named token since it's referenced directly in a few older spots
   /// that haven't been migrated to [AppDecorations.card] yet.
   static const cardBorder = Color(0xFFEDEBF5);
+
+  /// Dark "hero" background — same value as [primary] now that the whole
+  /// app shares the ink identity, kept as its own name for call sites that
+  /// specifically mean "the dark hero surface" rather than "the UI accent".
+  static const ink = Color(0xFF14121F);
+
+  /// Warm secondary accent (badges, CTAs, plan cards) — the one color in
+  /// the app that isn't part of the ink/slate family, so it keeps standing
+  /// out for AI/premium moments.
+  static const accentGold = Color(0xFFFFB454);
+  static const accentGoldDeep = Color(0xFFE8963A);
 }
 
 /// Shared container decorations, so "card" doesn't mean something
@@ -67,13 +85,13 @@ class AppTheme {
         secondary: AppColors.primary,
         surface: Colors.white,
       ),
-      textTheme: GoogleFonts.interTextTheme(base.textTheme).copyWith(
-        headlineMedium: GoogleFonts.playfairDisplay(
+      textTheme: base.textTheme.apply(fontFamily: 'Inter').copyWith(
+        headlineMedium: const TextStyle(fontFamily: 'Fraunces',
           fontSize: 26,
           fontWeight: FontWeight.w600,
           color: AppColors.slate900,
         ),
-        titleLarge: GoogleFonts.inter(
+        titleLarge: const TextStyle(fontFamily: 'Inter',
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: AppColors.slate900,
@@ -81,23 +99,23 @@ class AppTheme {
         // The small "section header" style repeated ad hoc across screens
         // (Settings, Home) as a literal TextStyle — named here so it can be
         // referenced instead of copy-pasted.
-        labelLarge: GoogleFonts.inter(
+        labelLarge: const TextStyle(fontFamily: 'Inter',
           fontSize: 13,
           fontWeight: FontWeight.w600,
           color: AppColors.slate800,
           letterSpacing: 0.1,
         ),
       ),
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.background,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        titleTextStyle: GoogleFonts.playfairDisplay(
+        titleTextStyle: TextStyle(fontFamily: 'Fraunces',
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: AppColors.slate900,
         ),
-        iconTheme: const IconThemeData(color: AppColors.slate900),
+        iconTheme: IconThemeData(color: AppColors.slate900),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -107,7 +125,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: GoogleFonts.inter(
+          textStyle: const TextStyle(fontFamily: 'Inter',
             fontWeight: FontWeight.w600,
             fontSize: 15,
           ),
@@ -140,6 +158,168 @@ class AppTheme {
         unselectedItemColor: AppColors.slate400,
         type: BottomNavigationBarType.fixed,
         showUnselectedLabels: true,
+      ),
+      // Popups are themed centrally so every AlertDialog / bottom sheet /
+      // SnackBar in the app picks up the rounded, serif-titled, ink/gold
+      // look without each call site being restyled by hand.
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 12,
+        shadowColor: const Color(0xFF1A1030),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titleTextStyle: const TextStyle(fontFamily: 'Fraunces',
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: AppColors.slate900,
+        ),
+        contentTextStyle: const TextStyle(fontFamily: 'Inter',
+          fontSize: 14,
+          height: 1.45,
+          color: AppColors.slate600,
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+        dragHandleColor: AppColors.slate400,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.ink,
+        contentTextStyle: const TextStyle(fontFamily: 'Inter',color: Colors.white, fontSize: 13.5),
+        actionTextColor: AppColors.accentGold,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  /// Mirrors [light]'s structure token-for-token, swapped to the dark "ink"
+  /// palette already used by the Paywall/Settings hero sections — this
+  /// makes the whole app read as that same design instead of introducing a
+  /// second, unrelated dark palette. `AppDecorations.card()` intentionally
+  /// stays white in both themes (a deliberate "white paper card on a dark
+  /// canvas" look, same pairing already used by the dark plan card sitting
+  /// on Settings' light page) rather than every card also going dark.
+  static ThemeData dark() {
+    final base = ThemeData.dark();
+    return base.copyWith(
+      scaffoldBackgroundColor: AppColors.ink,
+      colorScheme: base.colorScheme.copyWith(
+        primary: AppColors.accentGold,
+        secondary: AppColors.accentGold,
+        surface: AppColors.slate900,
+        onSurface: Colors.white,
+      ),
+      textTheme: base.textTheme.apply(fontFamily: 'Inter').copyWith(
+        headlineMedium: const TextStyle(fontFamily: 'Fraunces',
+          fontSize: 26,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+        titleLarge: const TextStyle(fontFamily: 'Inter',
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+        labelLarge: const TextStyle(fontFamily: 'Inter',
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.white70,
+          letterSpacing: 0.1,
+        ),
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.ink,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        titleTextStyle: TextStyle(fontFamily: 'Fraunces',
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+        iconTheme: IconThemeData(color: Colors.white),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.accentGold,
+          foregroundColor: AppColors.ink,
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(fontFamily: 'Inter',
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+          ),
+          elevation: 2,
+          shadowColor: AppColors.accentGold.withValues(alpha: 0.35),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.slate900,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.slate800),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.slate800),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.accentGold, width: 1.5),
+        ),
+        labelStyle: const TextStyle(color: Colors.white60),
+        hintStyle: const TextStyle(color: Colors.white38),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: AppColors.slate900,
+        selectedItemColor: AppColors.accentGold,
+        unselectedItemColor: AppColors.slate400,
+        type: BottomNavigationBarType.fixed,
+        showUnselectedLabels: true,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.slate900,
+        surfaceTintColor: Colors.transparent,
+        elevation: 12,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titleTextStyle: const TextStyle(fontFamily: 'Fraunces',
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+        contentTextStyle: const TextStyle(fontFamily: 'Inter',
+          fontSize: 14,
+          height: 1.45,
+          color: Colors.white70,
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.slate900,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+        dragHandleColor: AppColors.slate400,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.slate800,
+        contentTextStyle: const TextStyle(fontFamily: 'Inter',color: Colors.white, fontSize: 13.5),
+        actionTextColor: AppColors.accentGold,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.all(16),
       ),
     );
   }

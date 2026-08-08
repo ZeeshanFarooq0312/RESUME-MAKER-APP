@@ -2,12 +2,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'subscription_repository.dart';
 
-/// Daily AI-generation caps per tier. -1 means unlimited. Plain constants in
-/// one place so they're easy to retune without touching any call site.
+/// Per-tier daily AI-generation cap. `-1` means unlimited. AI is free to use
+/// for everyone (the paywall is at document download, not at AI usage) — free
+/// (basic) users get a generous daily cap purely to control API cost, Pro
+/// users are unlimited. Kept as constants in one place so
+/// [AiUsageTracker.canUseAi] is the single gate every AI call site funnels
+/// through, and the cap is trivial to retune here.
 class AiUsageLimits {
   const AiUsageLimits._();
   static const Map<SubscriptionTier, int> dailyLimit = {
-    SubscriptionTier.basic: 5,
+    SubscriptionTier.basic: 10,
     SubscriptionTier.pro: -1,
   };
 }

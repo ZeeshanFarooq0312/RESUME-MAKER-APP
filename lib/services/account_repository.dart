@@ -98,6 +98,32 @@ class AccountRepository {
 
   static Future<void> logOut() => FirebaseAuth.instance.signOut();
 
+  /// Permanently deletes the signed-in account from Firebase and wipes every
+  /// trace of it from this device. Required by Google Play for any app that
+  /// offers account creation. Firebase blocks deletion unless the user has
+  /// authenticated recently, so we re-authenticate with the password first —
+  /// which also doubles as a confirmation that it's really the account owner.
+  static Future<void> deleteAccount({required String password}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw AuthException('No account is signed in.');
+    final email = user.email;
+    if (email == null) {
+      throw AuthException("This account can't be deleted automatically — contact support.");
+    }
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: password),
+      );
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      throw _mapError(e);
+    }
+    // Remove all local data (profile, documents, onboarding flag, AI counts)
+    // so nothing of the deleted account survives on the device.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+  }
+
   static Future<bool> isOnboardingComplete() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_onboardingKey) ?? false;

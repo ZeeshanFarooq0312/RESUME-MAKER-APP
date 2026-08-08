@@ -49,7 +49,9 @@
       "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell input keyevent KEYCODE_WAKEUP)",
       "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell dumpsys power)",
       "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell input swipe 360 1400 360 400 300)",
-      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell input tap 274 1432)"
+      "Bash(/c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe -s 04725259AN003704 shell input tap 274 1432)",
+      "Bash(MSYS_NO_PATHCONV=1 /c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe shell screencap -p /sdcard/pw_state2.png)",
+      "Bash(MSYS_NO_PATHCONV=1 /c/Users/ZeshanFarooq/AppData/Local/Android/Sdk/platform-tools/adb.exe pull /sdcard/pw_state2.png 'C:\\\\Users\\\\ZESHAN~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--resume-app\\\\3f26c4d1-c5d6-4554-add8-cddadff2f6e4\\\\scratchpad\\\\pw_state2.png')"
     ],
     "additionalDirectories": [
       "d:\\resume_app\\.vscode"

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/account_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/validators.dart';
 import '../../widgets/auth_scaffold.dart';
 
 /// Create a real Firebase account. On success this only flips
@@ -44,8 +45,13 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() => _error = 'Fill in all fields to continue.');
       return;
     }
-    if (password.length < 6) {
-      setState(() => _error = 'Password must be at least 6 characters.');
+    if (!Validators.isValidEmail(email)) {
+      setState(() => _error = 'Enter a valid email address.');
+      return;
+    }
+    final passwordError = Validators.passwordStrengthError(password);
+    if (passwordError != null) {
+      setState(() => _error = passwordError);
       return;
     }
     if (password != _confirmPassword.text) {
@@ -110,6 +116,9 @@ class _SignupScreenState extends State<SignupScreen> {
                 icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               ),
+              helperText: Validators.passwordRequirements,
+              helperMaxLines: 2,
+              helperStyle: const TextStyle(color: AppColors.slate400, fontSize: 11),
             ),
             textInputAction: TextInputAction.next,
           ),

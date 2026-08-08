@@ -11,7 +11,10 @@ import '../models/proposal_data.dart';
 import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
 import '../services/documents_repository.dart';
+import '../services/subscription_repository.dart';
 import '../theme/app_theme.dart';
+import '../widgets/zoomable_pdf_view.dart';
+import 'paywall_screen.dart';
 import 'proposal_template_screen.dart';
 
 const _templateTitles = {
@@ -27,6 +30,7 @@ class ProposalPreviewScreen extends StatefulWidget {
   final ProposalTemplate template;
   final String? documentId;
   final bool isSample;
+  final bool isPremium;
   final VoidCallback? onUseTemplate;
 
   const ProposalPreviewScreen({
@@ -35,6 +39,7 @@ class ProposalPreviewScreen extends StatefulWidget {
     required this.template,
     this.documentId,
     this.isSample = false,
+    this.isPremium = false,
     this.onUseTemplate,
   });
 
@@ -101,6 +106,10 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
   }
 
   Future<void> _onDownloadPressed() async {
+    if (widget.isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic) {
+      await _showUpgradeDialog();
+      return;
+    }
     setState(() => _downloading = true);
     try {
       final bytes = await _pdfFuture;
@@ -111,11 +120,39 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
     }
   }
 
+  Future<void> _showUpgradeDialog() {
+    return showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Premium template'),
+        content: const Text('This template is available on Pro. Upgrade to export or download it.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
+            },
+            child: const Text('View Plans'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_templateTitles[widget.template]!),
+        actions: [
+          if (!widget.isSample)
+            IconButton(
+              icon: const Icon(Icons.share_outlined),
+              tooltip: 'Share',
+              onPressed: _downloading ? null : _onDownloadPressed,
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -125,21 +162,14 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Text(
               widget.isSample
-                  ? 'Sample preview with placeholder text — double-tap or pinch to zoom'
-                  : 'Double-tap or pinch to zoom in for details',
+                  ? 'Sample preview with placeholder text — pinch to zoom'
+                  : 'Pinch to zoom in for details',
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.slate600, fontSize: 12),
             ),
           ),
           Expanded(
-            child: PdfPreview(
-              build: (format) => _pdfFuture,
-              allowPrinting: false,
-              allowSharing: false,
-              canChangePageFormat: false,
-              canChangeOrientation: false,
-              pdfFileName: _fileName,
-            ),
+            child: ZoomablePdfView(pdf: _pdfFuture),
           ),
           SafeArea(
             top: false,

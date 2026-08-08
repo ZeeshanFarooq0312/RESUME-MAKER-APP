@@ -3,10 +3,8 @@ import '../data/sample_documents.dart';
 import '../models/document_entry.dart';
 import '../models/proposal_data.dart';
 import '../models/template_kind.dart';
-import '../services/subscription_repository.dart';
 import '../theme/app_theme.dart';
 import '../widgets/template_card.dart';
-import 'paywall_screen.dart';
 import 'proposal_preview_screen.dart';
 
 export '../models/template_kind.dart' show ProposalTemplate;
@@ -28,11 +26,11 @@ class ProposalTemplateScreen extends StatelessWidget {
           mainAxisSpacing: 16,
           childAspectRatio: 0.78,
           children: [
-            _card(context, title: 'Classic', isPremium: false, template: ProposalTemplate.classic),
-            _card(context, title: 'Modern', isPremium: true, template: ProposalTemplate.modern),
-            _card(context, title: 'Minimal', isPremium: true, template: ProposalTemplate.minimal),
-            _card(context, title: 'Corporate', isPremium: true, template: ProposalTemplate.corporate),
-            _card(context, title: 'Executive', isPremium: true, template: ProposalTemplate.executive),
+            _card(context, title: 'Classic', template: ProposalTemplate.classic),
+            _card(context, title: 'Modern', template: ProposalTemplate.modern),
+            _card(context, title: 'Minimal', template: ProposalTemplate.minimal),
+            _card(context, title: 'Corporate', template: ProposalTemplate.corporate),
+            _card(context, title: 'Executive', template: ProposalTemplate.executive),
           ],
         ),
       ),
@@ -42,25 +40,20 @@ class ProposalTemplateScreen extends StatelessWidget {
   Widget _card(
     BuildContext context, {
     required String title,
-    required bool isPremium,
     required ProposalTemplate template,
   }) {
     return TemplateCard(
       kind: DocumentKind.proposal,
       template: template,
       title: title,
-      badgeText: isPremium ? 'PRO' : null,
+      badgeText: template.isPremium ? 'PRO' : null,
       badgeBackgroundColor: AppColors.primaryLight.withValues(alpha: 0.7),
       badgeTextColor: AppColors.slate900,
-      onTap: () => _openPreview(context, template, isPremium),
+      onTap: () => _openPreview(context, template),
     );
   }
 
-  void _openPreview(BuildContext context, ProposalTemplate template, bool isPremium) {
-    if (isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic) {
-      _showUpgradeDialog(context);
-      return;
-    }
+  void _openPreview(BuildContext context, ProposalTemplate template) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -71,31 +64,15 @@ class ProposalTemplateScreen extends StatelessWidget {
           onUseTemplate: () => Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) =>
-                  ProposalPreviewScreen(data: data, template: template, documentId: documentId),
+              builder: (_) => ProposalPreviewScreen(
+                data: data,
+                template: template,
+                documentId: documentId,
+                isPremium: template.isPremium,
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _showUpgradeDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Premium template'),
-        content: const Text('This template is available on Pro. Upgrade to unlock it.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
-            },
-            child: const Text('View Plans'),
-          ),
-        ],
       ),
     );
   }

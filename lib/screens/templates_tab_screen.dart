@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/sample_documents.dart';
 import '../models/document_entry.dart';
+import '../services/resume_profile_prefill.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/filter_chip_row.dart';
 import '../widgets/pill_search_field.dart';
@@ -67,10 +68,7 @@ class _TemplatesTabScreenState extends State<TemplatesTabScreen> {
           resumeData: sampleResumeData(),
           template: template,
           isSample: true,
-          onUseTemplate: () => Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => FormScreen(initialTemplate: template)),
-          ),
+          onUseTemplate: () => _useResumeTemplate(template),
         );
         break;
       case DocumentKind.coverLetter:
@@ -99,6 +97,17 @@ class _TemplatesTabScreenState extends State<TemplatesTabScreen> {
         break;
     }
     Navigator.push(context, MaterialPageRoute(builder: (_) => sample));
+  }
+
+  Future<void> _useResumeTemplate(ResumeTemplate template) async {
+    final starting = await promptResumeStartingData(context);
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FormScreen(initialTemplate: template, initialData: starting),
+      ),
+    );
   }
 
   @override

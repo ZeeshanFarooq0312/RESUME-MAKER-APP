@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/cover_letter_data.dart';
 import '../models/document_entry.dart';
+import '../models/template_kind.dart';
 import '../services/ai_usage_tracker.dart';
 import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
@@ -30,9 +31,10 @@ void _showAiLimitReachedDialog(BuildContext context) {
     builder: (_) => AlertDialog(
       title: const Text('Daily AI limit reached'),
       content: const Text(
-          "You've used all your AI generations for today. Upgrade for a higher daily limit."),
+          "You've used today's free AI generations. Upgrade to Pro for unlimited AI-powered "
+          'summaries, rewrites, cover letters, and resume generation.'),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Not now')),
         ElevatedButton(
           onPressed: () {
             Navigator.pop(context);
@@ -90,8 +92,12 @@ class _CoverLetterFormScreenState extends State<CoverLetterFormScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              CoverLetterPreviewScreen(data: data, template: template, documentId: _entryId),
+          builder: (_) => CoverLetterPreviewScreen(
+            data: data,
+            template: template,
+            documentId: _entryId,
+            isPremium: template.isPremium,
+          ),
         ),
       );
     } else {

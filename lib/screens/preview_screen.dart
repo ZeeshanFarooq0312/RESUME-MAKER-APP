@@ -12,8 +12,11 @@ import '../models/resume_data.dart';
 import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
 import '../services/documents_repository.dart';
+import '../services/subscription_repository.dart';
 import '../services/translation_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/zoomable_pdf_view.dart';
+import 'paywall_screen.dart';
 import 'template_screen.dart';
 
 const _templateTitles = {
@@ -36,6 +39,7 @@ class PreviewScreen extends StatefulWidget {
   final ResumeTemplate template;
   final String? documentId;
   final bool isSample;
+  final bool isPremium;
   final VoidCallback? onUseTemplate;
 
   const PreviewScreen({
@@ -44,6 +48,7 @@ class PreviewScreen extends StatefulWidget {
     required this.template,
     this.documentId,
     this.isSample = false,
+    this.isPremium = false,
     this.onUseTemplate,
   });
 
@@ -223,6 +228,10 @@ class _PreviewScreenState extends State<PreviewScreen> {
   }
 
   Future<void> _onDownloadPressed() async {
+    if (widget.isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic) {
+      await _showUpgradeDialog();
+      return;
+    }
     setState(() => _downloading = true);
     try {
       final bytes = await _pdfFuture;
@@ -233,18 +242,44 @@ class _PreviewScreenState extends State<PreviewScreen> {
     }
   }
 
+  Future<void> _showUpgradeDialog() {
+    return showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Premium template'),
+        content: const Text('This template is available on Pro. Upgrade to export or download it.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
+            },
+            child: const Text('View Plans'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_templateTitles[widget.template]!),
         actions: [
-          if (!widget.isSample)
+          if (!widget.isSample) ...[
+            IconButton(
+              icon: const Icon(Icons.share_outlined),
+              tooltip: 'Share',
+              onPressed: _downloading ? null : _onDownloadPressed,
+            ),
             IconButton(
               icon: const Icon(Icons.translate),
               tooltip: 'Translate',
               onPressed: _openTranslateSheet,
             ),
+          ],
         ],
       ),
       body: Column(
@@ -255,8 +290,8 @@ class _PreviewScreenState extends State<PreviewScreen> {
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Text(
               widget.isSample
-                  ? 'Sample preview with placeholder text — double-tap or pinch to zoom'
-                  : 'Double-tap or pinch to zoom in for details',
+                  ? 'Sample preview with placeholder text — pinch to zoom'
+                  : 'Pinch to zoom in for details',
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.slate600, fontSize: 12),
             ),
@@ -282,14 +317,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
               ),
             ),
           Expanded(
-            child: PdfPreview(
-              build: (format) => _pdfFuture,
-              allowPrinting: false,
-              allowSharing: false,
-              canChangePageFormat: false,
-              canChangeOrientation: false,
-              pdfFileName: _fileName,
-            ),
+            child: ZoomablePdfView(pdf: _pdfFuture),
           ),
           SafeArea(
             top: false,

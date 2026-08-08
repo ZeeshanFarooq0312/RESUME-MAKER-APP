@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/account_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/validators.dart';
 import '../../widgets/auth_scaffold.dart';
 
 /// Log in with Firebase Authentication. On success this only flips
@@ -34,6 +35,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _password.text;
     if (email.isEmpty || password.isEmpty) {
       setState(() => _error = 'Enter your email and password.');
+      return;
+    }
+    if (!Validators.isValidEmail(email)) {
+      setState(() => _error = 'Enter a valid email address.');
       return;
     }
 
@@ -159,6 +164,10 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
     final email = _email.text.trim();
     if (email.isEmpty) {
       setState(() => _error = 'Enter your email.');
+      return;
+    }
+    if (!Validators.isValidEmail(email)) {
+      setState(() => _error = 'Enter a valid email address.');
       return;
     }
     setState(() {

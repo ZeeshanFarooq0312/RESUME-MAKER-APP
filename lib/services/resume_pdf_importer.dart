@@ -9,11 +9,11 @@ class ResumeImportException implements Exception {
 }
 
 class ResumePdfImporter {
-  /// Lets the user pick a PDF and parses it into [ResumeData]. Returns
+  /// Lets the user pick a PDF and returns its raw extracted text. Returns
   /// null if the user cancels the file picker. Throws
   /// [ResumeImportException] if the PDF has no extractable text (e.g. a
   /// scanned/image-only PDF) or can't be read.
-  static Future<ResumeData?> pickAndImport() async {
+  static Future<String?> pickAndExtractText() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
@@ -34,6 +34,16 @@ class ResumePdfImporter {
           "We couldn't find any text in that PDF. It may be a scanned image — try entering your details manually.");
     }
 
+    return text;
+  }
+
+  /// Lets the user pick a PDF and parses it into [ResumeData] via the local
+  /// regex-based [ResumeTextParser]. Returns null if the user cancels the
+  /// file picker. Throws [ResumeImportException] under the same conditions
+  /// as [pickAndExtractText].
+  static Future<ResumeData?> pickAndImport() async {
+    final text = await pickAndExtractText();
+    if (text == null) return null;
     return ResumeTextParser.parse(text);
   }
 }

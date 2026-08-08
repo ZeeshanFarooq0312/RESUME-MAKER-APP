@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
@@ -12,7 +14,9 @@ enum SubscriptionTier { basic, pro }
 /// Must match the "Entitlement identifier" configured in the RevenueCat
 /// dashboard exactly — if it drifts, every purchase silently leaves the app
 /// on Basic (RevenueCat has no way to warn us that the string didn't match).
-const kProEntitlementId = 'resume builder Pro';
+/// In the dashboard: create an entitlement with identifier `pro` and attach
+/// both the `pro:monthly` and `yearly:yearly` products to it.
+const kProEntitlementId = 'pro';
 
 /// Reactive current-tier state, read by every gating check in the app
 /// (template_screen.dart, the AI call sites, settings_tab_screen.dart).
@@ -50,12 +54,20 @@ class SubscriptionRepository {
     _initialized = true;
     await Purchases.configure(PurchasesConfiguration(_apiKey));
     Purchases.addCustomerInfoUpdateListener(_onCustomerInfoUpdated);
+    // Fetch the first CustomerInfo in the background rather than awaiting it:
+    // initialize() runs in main() before runApp, so awaiting this network
+    // round-trip would keep the whole app on a blank screen until it returns.
+    // The listener above flips the tier to Pro the moment it lands; until
+    // then the Basic default is correct for almost every launch anyway.
+    unawaited(_refreshCustomerInfo());
+  }
+
+  static Future<void> _refreshCustomerInfo() async {
     try {
-      await _onCustomerInfoUpdated(await Purchases.getCustomerInfo());
+      _onCustomerInfoUpdated(await Purchases.getCustomerInfo());
     } catch (_) {
-      // Leave tier at the default Basic if the initial fetch fails (e.g. no
-      // network on first launch) — the listener above will still update it
-      // once a real customer info sync succeeds.
+      // Leave tier at the default Basic if the fetch fails (e.g. offline) —
+      // the update listener will still correct it once a sync succeeds.
     }
   }
 
