@@ -73,8 +73,13 @@ class SubscriptionRepository {
 
   static Future<Offerings> fetchOfferings() => Purchases.getOfferings();
 
-  static Future<CustomerInfo> purchase(Package package) =>
-      Purchases.purchasePackage(package);
+  static Future<CustomerInfo> purchase(Package package) async {
+    // purchases_flutter 10 replaced purchasePackage(package) -> CustomerInfo
+    // with purchase(PurchaseParams) -> PurchaseResult; the CustomerInfo we
+    // gate on is now nested under .customerInfo.
+    final result = await Purchases.purchase(PurchaseParams.package(package));
+    return result.customerInfo;
+  }
 
   static Future<CustomerInfo> restore() => Purchases.restorePurchases();
 
