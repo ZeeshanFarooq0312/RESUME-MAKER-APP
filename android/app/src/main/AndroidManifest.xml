@@ -4,6 +4,11 @@
          screen (see TranslationService); translation itself then runs
          fully offline. No other network use in this app. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Lets the user photograph a job posting to scan its text into the AI
+         resume generator (see OcrService); recognition itself runs fully
+         on-device via ML Kit, nothing is uploaded. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <application
         android:label="Resume Builder"
         android:name="${applicationName}"

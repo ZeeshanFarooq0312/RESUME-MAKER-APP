@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../models/document_entry.dart';
 import '../models/template_kind.dart';
 import '../services/ai_usage_tracker.dart';
 import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
+import '../services/ocr_service.dart';
 import '../services/profile_repository.dart';
 import '../theme/app_theme.dart';
 import 'form_screen.dart';
@@ -78,6 +80,49 @@ class _AiResumeGeneratorScreenState extends State<AiResumeGeneratorScreen> {
     );
   }
 
+  /// Photographs a job posting and fills the job-description field with its
+  /// text, recognized entirely on-device (see OcrService) — an alternative
+  /// to retyping or pasting when the posting only exists on paper or screen.
+  Future<void> _onScanPressed() async {
+    XFile? photo;
+    try {
+      photo = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 90);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't open the camera. Check camera permission in Settings.")),
+        );
+      }
+      return;
+    }
+    if (photo == null) return; // user cancelled
+
+    _showProgressDialog('Reading text from photo…');
+    try {
+      final text = await OcrService.extractText(photo.path);
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (text.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No text found in that photo. Try a clearer, well-lit shot, or paste it manually.'),
+            ),
+          );
+        }
+        return;
+      }
+      final existing = _jobDescription.text.trim();
+      _jobDescription.text = existing.isEmpty ? text : '$existing\n\n$text';
+    } catch (_) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't read that photo. Please try again.")),
+        );
+      }
+    }
+  }
+
   Future<void> _onGenerate() async {
     final jd = _jobDescription.text.trim();
     if (jd.isEmpty) {
@@ -144,6 +189,19 @@ class _AiResumeGeneratorScreenState extends State<AiResumeGeneratorScreen> {
               style: TextStyle(color: AppColors.slate600, fontSize: 12.5, height: 1.4),
             ),
             const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Job description', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                TextButton.icon(
+                  onPressed: _onScanPressed,
+                  icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                  label: const Text('Scan photo'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primary, padding: EdgeInsets.zero),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
             TextFormField(
               controller: _jobDescription,
               maxLines: 12,
