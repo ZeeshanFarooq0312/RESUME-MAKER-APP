@@ -413,4 +413,50 @@ Rules:
       }
     });
   }
+
+  /// Reviews a resume's text for ATS-friendliness and produces a short
+  /// qualitative summary plus concrete improvement suggestions. Deliberately
+  /// separate from AtsScoreService's numeric score (100% rule-based and
+  /// instant) — this call only adds written feedback on top of it, and a
+  /// failure here should never block the score/checklist from showing.
+  static Future<({String summary, List<String> suggestions})> reviewAtsScore({
+    required String resumeText,
+    String? jobDescription,
+  }) {
+    return _guard(() async {
+      final content = await _complete(
+        jsonMode: true,
+        temperature: 0.4,
+        systemPrompt: '''
+You are an ATS (Applicant Tracking System) resume reviewer. You will be given the text of a
+resume, and optionally a job description it's being considered for. Return a single JSON object
+with exactly this shape:
+{"summary": "", "suggestions": [""]}
+
+Rules:
+1. "summary" is 2-3 sentences on how ATS-friendly and effective this resume is overall.
+2. "suggestions" is a list of 3-6 short, specific, actionable improvements (e.g. "Add a metric to
+   your first bullet under Acme Corp", not "add more metrics"). Base them only on the actual
+   content given — never invent facts about the candidate.
+3. Be honest and specific about real gaps rather than only praising the resume.
+4. Return ONLY the JSON object, no markdown, no preamble.
+''',
+        userPrompt: 'Resume text:\n$resumeText\n\n'
+            '${jobDescription != null && jobDescription.trim().isNotEmpty ? "Target job description:\n$jobDescription\n" : ""}',
+      );
+
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(content) as Map<String, dynamic>;
+      } catch (_) {
+        throw AiServiceException("Couldn't understand the AI's response — please try again.");
+      }
+      final summary = parsed['summary'] is String ? parsed['summary'] as String : '';
+      final suggestions = (parsed['suggestions'] as List? ?? []).whereType<String>().toList();
+      if (summary.isEmpty && suggestions.isEmpty) {
+        throw AiServiceException("Couldn't understand the AI's response — please try again.");
+      }
+      return (summary: summary, suggestions: suggestions);
+    });
+  }
 }

@@ -18,6 +18,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/shimmer_sweep.dart';
 import '../widgets/template_card.dart';
 import 'ai_resume_generator_screen.dart';
+import 'ats_score_screen.dart';
 import 'cover_letter_form_screen.dart';
 import 'form_screen.dart';
 import 'paywall_screen.dart';
@@ -270,6 +271,15 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     _load();
   }
 
+  // No _checkAiGuards here: the rule-based ATS score works with no Groq key
+  // and no daily-limit check at all (only the extra AI-written feedback on
+  // the result screen degrades gracefully if AI is unavailable), and it
+  // doesn't need a saved Profile — it scores a chosen document or upload
+  // directly.
+  void _onCheckAtsScore() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const AtsScoreEntryScreen()));
+  }
+
   void _showError(String message) {
     showDialog(
       context: context,
@@ -428,6 +438,8 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     ),
                     const SizedBox(height: 10),
                     _AiGenerateButton(onTap: _onGenerateFromJobDescription),
+                    const SizedBox(height: 10),
+                    _AtsScoreButton(onTap: _onCheckAtsScore),
                     const SizedBox(height: 28),
                     Text('Recommended Templates', style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: 12),
@@ -591,6 +603,53 @@ class _QuickActionCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-width entry point into ATS scoring. Deliberately a quieter,
+/// white/outlined card — one step down from [_AiGenerateButton]'s bold
+/// gradient treatment — so the AI-generation CTA still reads as the
+/// screen's primary action.
+class _AtsScoreButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AtsScoreButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: AppDecorations.card(radius: 16),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(color: AppColors.primaryLight, shape: BoxShape.circle),
+              child: const Icon(Icons.fact_check_outlined, color: AppColors.primary, size: 20),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Check ATS Score', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5)),
+                  SizedBox(height: 2),
+                  Text(
+                    'See how a resume scores against ATS screening',
+                    style: TextStyle(color: AppColors.slate600, fontSize: 11.5),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.slate400),
           ],
         ),
       ),

@@ -16,6 +16,9 @@ class AppColors {
   static const primaryLight = Color(0xFFF1EFFA);
   static const background = Color(0xFFF7F7FB);
   static const danger = Color(0xFFE0455F);
+  /// Used only for the ATS score gauge's "good" band — everywhere else the
+  /// app deliberately has no green, so this stays scoped to that one meter.
+  static const success = Color(0xFF2E9E6C);
 
   static const slate900 = Color(0xFF221F35);
   static const slate800 = Color(0xFF352F52);
