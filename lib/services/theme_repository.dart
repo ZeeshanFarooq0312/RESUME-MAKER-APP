@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// ValueNotifier-at-the-top pattern as `AccountSession`/`SubscriptionSession`.
 class ThemeSession {
   const ThemeSession._();
-  static final ValueNotifier<ThemeMode> mode = ValueNotifier(ThemeMode.system);
+  static final ValueNotifier<ThemeMode> mode = ValueNotifier(ThemeMode.light);
 }
 
 /// Persists the user's light/dark/system choice across launches.
@@ -21,7 +21,11 @@ class ThemeRepository {
     ThemeSession.mode.value = switch (saved) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
-      _ => ThemeMode.system,
+      'system' => ThemeMode.system,
+      // No saved preference yet (first launch) -> the app's own default is
+      // Light, not the device's system setting, so it looks consistent
+      // regardless of what the user's phone theme happens to be.
+      _ => ThemeMode.light,
     };
   }
 
