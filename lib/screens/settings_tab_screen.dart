@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/account_repository.dart';
+import '../services/documents_repository.dart';
+import '../services/ai_usage_tracker.dart';
 import '../services/subscription_repository.dart';
 import '../services/theme_repository.dart';
 import '../theme/app_theme.dart';
@@ -53,43 +55,6 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
     ThemeMode.system: 'Match system',
   };
 
-  Future<void> _pickTheme(ThemeMode current) {
-    return showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      builder: (sheetContext) {
-        final p = AuthPalette.of(sheetContext);
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Appearance',
-                  style: TextStyle(
-                      fontFamily: 'Fraunces', fontSize: 22, fontWeight: FontWeight.w600, color: p.title)),
-              const SizedBox(height: 14),
-              for (final mode in ThemeMode.values)
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  leading: Icon(_themeIcons[mode], color: mode == current ? p.title : p.muted),
-                  title: Text(_themeLabels[mode]!,
-                      style: TextStyle(
-                          fontWeight: mode == current ? FontWeight.w700 : FontWeight.w500, color: p.title)),
-                  trailing: mode == current ? Icon(LucideIcons.check, color: p.title) : null,
-                  onTap: () {
-                    ThemeRepository.setMode(mode);
-                    Navigator.pop(sheetContext);
-                  },
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _logOut() async {
     final confirmed = await showPromptSheet(
       context,
@@ -110,9 +75,8 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
       await SubscriptionRepository.restore();
       if (!mounted) return;
       final isPro = SubscriptionSession.tier.value == SubscriptionTier.pro;
-      showToast(context, isPro
-            ? "Purchase restored — you're on Pro."
-            : 'No previous purchase found on this account.', tone: isPro ? ToastTone.success : ToastTone.info);
+      showToast(context, isPro ? "Purchase restored — you're on Pro." : 'No previous purchase found on this account.',
+          tone: isPro ? ToastTone.success : ToastTone.info);
     } catch (_) {
       if (mounted) {
         showToast(context, "Couldn't restore purchases. Please try again.", tone: ToastTone.error);
@@ -166,6 +130,40 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
     }
   }
 
+  // Live stats shown on the account card. Refreshed whenever documents or
+  // AI usage change, since this tab stays alive in the app shell.
+  int? _docCount;
+  int? _savedCount;
+  int? _aiLeft;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+    DocumentsRepository.revision.addListener(_loadStats);
+    AiUsageTracker.changes.addListener(_loadStats);
+    SubscriptionSession.tier.addListener(_loadStats);
+  }
+
+  @override
+  void dispose() {
+    DocumentsRepository.revision.removeListener(_loadStats);
+    AiUsageTracker.changes.removeListener(_loadStats);
+    SubscriptionSession.tier.removeListener(_loadStats);
+    super.dispose();
+  }
+
+  Future<void> _loadStats() async {
+    final docs = await DocumentsRepository.loadAll();
+    final aiLeft = await AiUsageTracker.remainingToday();
+    if (!mounted) return;
+    setState(() {
+      _docCount = docs.length;
+      _savedCount = docs.where((d) => d.isFavorite).length;
+      _aiLeft = aiLeft;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = AuthPalette.of(context);
@@ -189,10 +187,27 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              _ProfileHeader(name: _name, email: _email, initial: _initial),
-              const SizedBox(height: 14),
+              _AccountCard(
+                name: _name,
+                email: _email,
+                initial: _initial,
+                docCount: _docCount,
+                savedCount: _savedCount,
+                aiLeft: _aiLeft,
+              ),
+              const SizedBox(height: 12),
               _PlanCard(
                 onManage: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen())),
+              ),
+              const _GroupLabel('Appearance'),
+              ValueListenableBuilder<ThemeMode>(
+                valueListenable: ThemeSession.mode,
+                builder: (context, mode, _) => _ThemeSwitch(
+                  mode: mode,
+                  icons: _themeIcons,
+                  labels: _themeLabels,
+                  onChanged: ThemeRepository.setMode,
+                ),
               ),
               const _GroupLabel('Account'),
               _GroupCard(children: [
@@ -201,15 +216,6 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
                   title: 'My profile',
                   subtitle: 'Details AI uses to tailor your resumes',
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
-                ),
-                ValueListenableBuilder<ThemeMode>(
-                  valueListenable: ThemeSession.mode,
-                  builder: (context, mode, _) => _SettingsRow(
-                    icon: _themeIcons[mode]!,
-                    title: 'Appearance',
-                    value: _themeLabels[mode]!,
-                    onTap: () => _pickTheme(mode),
-                  ),
                 ),
                 if (SubscriptionRepository.isConfigured)
                   _SettingsRow(
@@ -230,10 +236,22 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
                 ),
                 const _SettingsRow(icon: LucideIcons.info, title: 'Version', value: '1.0.1'),
               ]),
-              const SizedBox(height: 14),
-              _GroupCard(children: [
-                _SettingsRow(icon: LucideIcons.logOut, title: 'Log out', onTap: _logOut, showChevron: false),
-              ]),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: _logOut,
+                  icon: const Icon(LucideIcons.logOut, size: 18),
+                  label: const Text('Log out'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: p.title,
+                    backgroundColor: p.surface,
+                    side: BorderSide(color: p.fieldBorder, width: 1.2),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
               const _GroupLabel('Danger zone'),
               _GroupCard(children: [
                 _SettingsRow(
@@ -259,48 +277,87 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
   }
 }
 
-class _ProfileHeader extends StatelessWidget {
+/// Avatar, name and email, plus three live stats.
+class _AccountCard extends StatelessWidget {
   final String name;
   final String email;
   final String initial;
-  const _ProfileHeader({required this.name, required this.email, required this.initial});
+  final int? docCount;
+  final int? savedCount;
+  final int? aiLeft;
+
+  const _AccountCard({
+    required this.name,
+    required this.email,
+    required this.initial,
+    required this.docCount,
+    required this.savedCount,
+    required this.aiLeft,
+  });
 
   @override
   Widget build(BuildContext context) {
     final p = AuthPalette.of(context);
+    String fmt(int? n) => n == null ? '–' : '$n';
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: p.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: p.fieldBorder),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(color: AppColors.accentGold, shape: BoxShape.circle),
-            child: initial == '?'
-                ? const Icon(LucideIcons.user, color: AppColors.ink, size: 24)
-                : Text(initial,
-                    style: const TextStyle(color: AppColors.ink, fontWeight: FontWeight.w700, fontSize: 21)),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
               children: [
-                Text(name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16.5, color: p.title)),
-                if (email.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(email,
-                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: p.body, fontSize: 13.5)),
-                ],
+                Container(
+                  width: 56,
+                  height: 56,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(color: AppColors.accentGold, shape: BoxShape.circle),
+                  child: initial == '?'
+                      ? const Icon(LucideIcons.user, color: AppColors.ink, size: 26)
+                      : Text(initial,
+                          style: const TextStyle(color: AppColors.ink, fontWeight: FontWeight.w700, fontSize: 22)),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: p.title)),
+                      if (email.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(email,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: p.body, fontSize: 13.5)),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 1, color: p.fieldBorder),
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(child: _Stat(value: fmt(docCount), label: 'Documents')),
+                VerticalDivider(width: 1, thickness: 1, color: p.fieldBorder),
+                Expanded(child: _Stat(value: fmt(savedCount), label: 'Saved')),
+                VerticalDivider(width: 1, thickness: 1, color: p.fieldBorder),
+                Expanded(
+                  child: _Stat(
+                    value: aiLeft == null ? '–' : (aiLeft! < 0 ? '∞' : '$aiLeft'),
+                    label: 'AI left today',
+                    highlight: aiLeft == 0,
+                  ),
+                ),
               ],
             ),
           ),
@@ -310,86 +367,181 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-/// Flat dark plan card (same surface as Home's hero), reacting to the tier.
+class _Stat extends StatelessWidget {
+  final String value;
+  final String label;
+  final bool highlight;
+  const _Stat({required this.value, required this.label, this.highlight = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Column(
+        children: [
+          Text(value,
+              style: TextStyle(
+                  fontFamily: 'Fraunces',
+                  fontSize: 22,
+                  height: 1.1,
+                  fontWeight: FontWeight.w600,
+                  color: highlight ? AppColors.danger : p.title)),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(fontSize: 12, color: p.body)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Slim plan card: a gold-outlined upsell on Free, a quiet "Active" row on Pro.
 class _PlanCard extends StatelessWidget {
   final VoidCallback onManage;
   const _PlanCard({required this.onManage});
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final p = AuthPalette.of(context);
     return ValueListenableBuilder<SubscriptionTier>(
       valueListenable: SubscriptionSession.tier,
       builder: (context, tier, _) {
         final isPro = tier == SubscriptionTier.pro;
-        return Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: dark ? AppColors.slate900 : AppColors.ink,
+        return Material(
+          color: isPro ? p.surface : AppColors.accentGold.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            onTap: onManage,
             borderRadius: BorderRadius.circular(18),
-            border: dark ? Border.all(color: AppColors.slate800) : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isPro ? p.fieldBorder : AppColors.accentGold.withValues(alpha: 0.7),
+                  width: isPro ? 1 : 1.4,
+                ),
+              ),
+              child: Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(color: AppColors.accentGold, borderRadius: BorderRadius.circular(12)),
                     child: const Icon(LucideIcons.crown, color: AppColors.ink, size: 20),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(isPro ? 'Pro plan' : 'Free plan',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
+                        Row(
+                          children: [
+                            Text(isPro ? 'Pro plan' : 'Upgrade to Pro',
+                                style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: p.title)),
+                            if (isPro) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: const Text('Active',
+                                    style:
+                                        TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.success)),
+                              ),
+                            ],
+                          ],
+                        ),
                         const SizedBox(height: 2),
                         Text(
-                          isPro ? 'Unlimited AI and every template' : 'Limited daily AI and free templates',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13),
+                          isPro ? 'Unlimited AI and every template' : 'Unlimited AI and every premium template',
+                          style: TextStyle(fontSize: 13, color: p.body),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  if (isPro)
+                    Text('Manage', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: p.title))
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(color: p.primary, borderRadius: BorderRadius.circular(999)),
+                      child: Text('See plans',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: p.onPrimary)),
+                    ),
                 ],
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: isPro
-                    ? OutlinedButton(
-                        onPressed: onManage,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w600),
-                        ),
-                        child: const Text('Manage plan'),
-                      )
-                    : FilledButton(
-                        onPressed: onManage,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.accentGold,
-                          foregroundColor: AppColors.ink,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w700),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [Text('Upgrade to Pro'), SizedBox(width: 6), Icon(LucideIcons.arrowRight, size: 16)],
-                        ),
-                      ),
-              ),
-            ],
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Inline Light / Dark / System segmented switch.
+class _ThemeSwitch extends StatelessWidget {
+  final ThemeMode mode;
+  final Map<ThemeMode, IconData> icons;
+  final Map<ThemeMode, String> labels;
+  final ValueChanged<ThemeMode> onChanged;
+  const _ThemeSwitch({required this.mode, required this.icons, required this.labels, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: p.fieldBorder),
+      ),
+      child: Row(
+        children: [
+          for (final m in [ThemeMode.light, ThemeMode.dark, ThemeMode.system])
+            Expanded(
+              child: Semantics(
+                selected: m == mode,
+                button: true,
+                child: GestureDetector(
+                  onTap: () => onChanged(m),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    decoration: BoxDecoration(
+                      color: m == mode ? p.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icons[m], size: 16, color: m == mode ? p.onPrimary : p.body),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            m == ThemeMode.system ? 'System' : labels[m]!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: m == mode ? p.onPrimary : p.body,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -561,7 +713,6 @@ class _SettingsRow extends StatelessWidget {
   final String? value;
   final VoidCallback? onTap;
   final bool danger;
-  final bool showChevron;
   final IconData? trailingIcon;
 
   const _SettingsRow({
@@ -571,7 +722,6 @@ class _SettingsRow extends StatelessWidget {
     this.value,
     this.onTap,
     this.danger = false,
-    this.showChevron = true,
     this.trailingIcon,
   });
 
@@ -613,7 +763,7 @@ class _SettingsRow extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(value!, style: TextStyle(color: p.body, fontSize: 14)),
               ],
-              if (onTap != null && showChevron) ...[
+              if (onTap != null) ...[
                 const SizedBox(width: 6),
                 Icon(trailingIcon ?? LucideIcons.chevronRight, size: 18, color: p.muted),
               ],
