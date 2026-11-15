@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'subscription_repository.dart';
@@ -25,6 +26,10 @@ class AiUsageLimits {
 class AiUsageTracker {
   const AiUsageTracker._();
 
+  /// Bumped after each recorded use, so screens showing "AI left today"
+  /// (e.g. Settings, kept alive in the app shell) can refresh.
+  static final ValueNotifier<int> changes = ValueNotifier(0);
+
   static const _dateKey = 'ai_usage_date_v1';
   static const _countKey = 'ai_usage_count_v1';
 
@@ -50,6 +55,7 @@ class AiUsageTracker {
     final count = await _currentCount();
     await prefs.setString(_dateKey, _today());
     await prefs.setInt(_countKey, count + 1);
+    changes.value++;
   }
 
   /// For UI messaging (e.g. "3 of 5 used today").
