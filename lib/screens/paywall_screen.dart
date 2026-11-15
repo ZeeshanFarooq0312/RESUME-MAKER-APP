@@ -515,9 +515,9 @@ class _FannedPages extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          page(ResumeTemplate.creative, -0.2, const Offset(-24, 8)),
-          page(ResumeTemplate.elegant, 0.18, const Offset(24, 8)),
-          page(ResumeTemplate.modern, 0, const Offset(0, -2)),
+          page(ResumeTemplate.nova, -0.2, const Offset(-24, 8)),
+          page(ResumeTemplate.vivid, 0.18, const Offset(24, 8)),
+          page(ResumeTemplate.aurora, 0, const Offset(0, -2)),
         ],
       ),
     );

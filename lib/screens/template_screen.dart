@@ -9,11 +9,12 @@ import '../widgets/template_card.dart';
 import '../widgets/template_picker_scaffold.dart';
 import 'describe_template_screen.dart';
 import 'preview_screen.dart';
+import '../pdf/resume_design_presets.dart';
 
 export '../models/template_kind.dart' show ResumeTemplate;
 
 /// One-line description of each resume template, shown under its name.
-const resumeTemplateTaglines = {
+final resumeTemplateTaglines = <ResumeTemplate, String>{
   ResumeTemplate.classic: 'ATS-friendly',
   ResumeTemplate.modern: 'Color sidebar and photo',
   ResumeTemplate.minimal: 'ATS-friendly',
@@ -26,6 +27,7 @@ const resumeTemplateTaglines = {
   ResumeTemplate.creative: 'Bold color banner',
   ResumeTemplate.elegant: 'Editorial style',
   ResumeTemplate.timeline: 'Visual work history',
+  for (final e in resumeDesignPresets.entries) e.key: e.value.tagline,
 };
 
 /// "simpleBold" -> "Simple Bold".

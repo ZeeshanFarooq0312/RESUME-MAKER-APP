@@ -3,13 +3,20 @@ import 'dart:convert';
 /// A curated, enum-backed palette (not freeform hex) so an AI-generated
 /// style spec always renders legibly — colors are chosen from the same set
 /// already proven across the app's hand-built templates.
-enum TemplateAccentColor { violet, forestGreen, navyBlue, burgundy, gold, charcoal, teal, slate }
+enum TemplateAccentColor { violet, forestGreen, navyBlue, burgundy, gold, charcoal, teal, slate, plum, rust, ocean, black }
 
 /// Structural layout choices the flexible renderer ([DynamicResumeTemplate])
-/// knows how to build. Limited to the two layouts already proven in the
-/// hand-built templates (plain header vs colored banner header) rather than
-/// an untested sidebar layout.
-enum TemplateLayoutVariant { plainHeader, bannerHeader }
+/// knows how to build. Sidebar layouts put contact, skills and education in
+/// a side column (and flow across pages); split header puts the name left
+/// and contact details right.
+enum TemplateLayoutVariant { plainHeader, bannerHeader, sidebarLeft, sidebarRight, splitHeader }
+
+/// How section headings ("EXPERIENCE", …) are drawn.
+enum TemplateHeadingStyle { caps, underline, bar, pill }
+
+/// Type families for headings and body text. Mapped to bundled static TTFs
+/// by the renderer (PdfFontFamily), so the model stays free of PDF types.
+enum TemplateFont { lato, poppins, ptSerif, ptSans, crimsonText, plexSerif }
 
 enum TemplateDensity { compact, comfortable, spacious }
 
@@ -28,6 +35,12 @@ class TemplateStyleSpec {
   final TemplateDensity density;
   final TemplateHeaderStyle headerStyle;
   final List<TemplateSection> sectionOrder;
+  final TemplateHeadingStyle headingStyle;
+  final TemplateFont headingFont;
+  final TemplateFont bodyFont;
+
+  /// Sidebar layouts only: show the profile photo when one is set.
+  final bool showPhoto;
 
   static const List<TemplateSection> defaultSectionOrder = [
     TemplateSection.summary,
@@ -36,13 +49,35 @@ class TemplateStyleSpec {
     TemplateSection.skills,
   ];
 
-  TemplateStyleSpec({
+  const TemplateStyleSpec({
     this.accentColor = TemplateAccentColor.navyBlue,
     this.layoutVariant = TemplateLayoutVariant.plainHeader,
     this.density = TemplateDensity.comfortable,
     this.headerStyle = TemplateHeaderStyle.leftAligned,
     this.sectionOrder = defaultSectionOrder,
+    this.headingStyle = TemplateHeadingStyle.caps,
+    this.headingFont = TemplateFont.lato,
+    this.bodyFont = TemplateFont.lato,
+    this.showPhoto = true,
   });
+
+  TemplateStyleSpec copyWith({
+    TemplateAccentColor? accentColor,
+    TemplateDensity? density,
+    TemplateFont? headingFont,
+    TemplateFont? bodyFont,
+  }) =>
+      TemplateStyleSpec(
+        accentColor: accentColor ?? this.accentColor,
+        layoutVariant: layoutVariant,
+        density: density ?? this.density,
+        headerStyle: headerStyle,
+        sectionOrder: sectionOrder,
+        headingStyle: headingStyle,
+        headingFont: headingFont ?? this.headingFont,
+        bodyFont: bodyFont ?? this.bodyFont,
+        showPhoto: showPhoto,
+      );
 
   Map<String, dynamic> toJson() => {
         'accentColor': accentColor.name,
@@ -50,6 +85,10 @@ class TemplateStyleSpec {
         'density': density.name,
         'headerStyle': headerStyle.name,
         'sectionOrder': sectionOrder.map((s) => s.name).toList(),
+        'headingStyle': headingStyle.name,
+        'headingFont': headingFont.name,
+        'bodyFont': bodyFont.name,
+        'showPhoto': showPhoto,
       };
 
   /// Parses untrusted JSON (AI output or stored data) field-by-field,
@@ -91,6 +130,10 @@ class TemplateStyleSpec {
       density: enumOrDefault(TemplateDensity.values, json['density'], TemplateDensity.comfortable),
       headerStyle: enumOrDefault(TemplateHeaderStyle.values, json['headerStyle'], TemplateHeaderStyle.leftAligned),
       sectionOrder: sections(),
+      headingStyle: enumOrDefault(TemplateHeadingStyle.values, json['headingStyle'], TemplateHeadingStyle.caps),
+      headingFont: enumOrDefault(TemplateFont.values, json['headingFont'], TemplateFont.lato),
+      bodyFont: enumOrDefault(TemplateFont.values, json['bodyFont'], TemplateFont.lato),
+      showPhoto: json['showPhoto'] is bool ? json['showPhoto'] as bool : true,
     );
   }
 

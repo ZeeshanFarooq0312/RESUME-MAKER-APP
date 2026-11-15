@@ -27,6 +27,15 @@ class DocumentsRepository {
   /// document — e.g. hearting on Home updates Saved immediately.
   static final ValueNotifier<int> revision = ValueNotifier(0);
 
+  /// The latest stored version of one document, or null.
+  static Future<DocumentEntry?> find(String id) async {
+    final all = await loadAll();
+    for (final e in all) {
+      if (e.id == id) return e;
+    }
+    return null;
+  }
+
   static Future<List<DocumentEntry>> loadAll() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_key) ?? [];

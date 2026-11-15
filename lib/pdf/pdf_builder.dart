@@ -5,6 +5,7 @@ import '../models/proposal_data.dart';
 import '../models/resume_data.dart';
 import '../models/template_kind.dart';
 import '../models/template_style_spec.dart';
+import 'resume_design_presets.dart';
 import 'templates/classic_template.dart';
 import 'templates/compact_template.dart';
 import 'templates/cover_letter_bold_template.dart';
@@ -30,6 +31,8 @@ import 'templates/technical_template.dart';
 import 'templates/timeline_template.dart';
 
 Future<pw.Document> buildResumeDoc(ResumeTemplate template, ResumeData data) {
+  final design = resumeDesignPresets[template];
+  if (design != null) return DynamicResumeTemplate.build(data, design.spec);
   switch (template) {
     case ResumeTemplate.classic:
       return ClassicTemplate.build(data);
@@ -55,6 +58,9 @@ Future<pw.Document> buildResumeDoc(ResumeTemplate template, ResumeData data) {
       return ElegantTemplate.build(data);
     case ResumeTemplate.timeline:
       return TimelineTemplate.build(data);
+    default:
+      // Every other value is a design-spec preset, handled above.
+      throw StateError('No renderer for $template');
   }
 }
 

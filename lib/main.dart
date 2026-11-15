@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'services/subscription_repository.dart';
 import 'services/theme_repository.dart';
@@ -19,8 +21,27 @@ void main() async {
   // The slow initializers (Firebase, RevenueCat) are deliberately NOT awaited
   // here: awaiting them kept the app on a blank white screen for seconds
   // before the first frame. They now run behind a splash inside [_Bootstrap].
+  _registerFontLicenses();
   await Future.wait([ThemeRepository.load(), WelcomeRepository.load()]);
   runApp(const ResumeBuilderApp());
+}
+
+/// The bundled PDF fonts are SIL Open Font License; the license requires
+/// shipping its text, so it's listed in the app's licenses page.
+void _registerFontLicenses() {
+  const fonts = {
+    'Poppins': 'poppins',
+    'PT Serif': 'ptserif',
+    'PT Sans': 'ptsans',
+    'Crimson Text': 'crimsontext',
+    'IBM Plex Serif': 'ibmplexserif',
+  };
+  LicenseRegistry.addLicense(() async* {
+    for (final entry in fonts.entries) {
+      final text = await rootBundle.loadString('assets/fonts/pdf/licenses/${entry.value}-OFL.txt');
+      yield LicenseEntryWithLineBreaks([entry.key], text);
+    }
+  });
 }
 
 class ResumeBuilderApp extends StatelessWidget {

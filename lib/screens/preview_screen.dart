@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:isolate';
 import 'dart:typed_data';
@@ -27,6 +29,10 @@ import '../widgets/preview_scaffold.dart';
 import 'cover_letter_template_screen.dart';
 import 'interview_prep_screen.dart';
 import 'template_screen.dart';
+import '../pdf/resume_design_presets.dart';
+import '../widgets/design_customizer.dart';
+import '../pdf/templates/dynamic_resume_template.dart';
+import '../models/template_style_spec.dart';
 
 
 
@@ -53,6 +59,9 @@ class PreviewScreen extends StatefulWidget {
   final bool isPremium;
   final VoidCallback? onUseTemplate;
 
+  /// A document's saved customization of a design-spec template.
+  final TemplateStyleSpec? styleOverride;
+
   const PreviewScreen({
     super.key,
     required this.resumeData,
@@ -61,6 +70,7 @@ class PreviewScreen extends StatefulWidget {
     this.isSample = false,
     this.isPremium = false,
     this.onUseTemplate,
+    this.styleOverride,
   });
 
   @override
@@ -71,6 +81,16 @@ class _PreviewScreenState extends State<PreviewScreen> {
   bool _downloading = false;
   TranslateLanguage? _translatedLanguage;
   late Future<Uint8List> _pdfFuture;
+
+  /// The design spec for design-spec templates (null for hand-built ones),
+  /// including any customization from the Style panel.
+  late TemplateStyleSpec? _spec = widget.styleOverride ?? _presetSpec;
+  TemplateStyleSpec? get _presetSpec => resumeDesignPresets[widget.template]?.spec;
+  bool get _isCustomized => _spec != null && _spec!.encode() != _presetSpec?.encode();
+
+  /// What's currently rendered (the original or a translation).
+  late ResumeData _renderData = widget.resumeData;
+  Timer? _rerender;
 
   @override
   void initState() {
@@ -87,13 +107,62 @@ class _PreviewScreenState extends State<PreviewScreen> {
   // isolate, where bindings exist) and priming the isolate's own PdfFonts
   // cache from those bytes avoids touching rootBundle inside the isolate.
   Future<Uint8List> _generatePdf(ResumeData data) async {
-    final fontBytes = await PdfFonts.loadBytes();
+    final spec = _spec;
+    final fontBytes = await PdfFonts.loadBytes(
+      extra: spec != null ? DynamicResumeTemplate.fontsFor(spec) : resumeFontsFor(widget.template),
+    );
     final template = widget.template;
     return Isolate.run(() async {
-      PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold);
-      final doc = await buildResumeDoc(template, data);
+      PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold, fontBytes.extras);
+      final doc = spec != null ? await buildDynamicResumeDoc(data, spec) : await buildResumeDoc(template, data);
       return doc.save();
     });
+  }
+
+  Future<void> _openStyle() async {
+    final original = _presetSpec;
+    final current = _spec;
+    if (original == null || current == null) return;
+    await showDesignCustomizer(
+      context,
+      initial: current,
+      original: original,
+      onChanged: (next) {
+        _spec = next;
+        // Re-render shortly after the last tap rather than on every one.
+        _rerender?.cancel();
+        _rerender = Timer(const Duration(milliseconds: 220), () {
+          if (mounted) setState(() => _pdfFuture = _generatePdf(_renderData));
+        });
+      },
+    );
+    await _saveStyle();
+  }
+
+  /// Stores the customization on the document so it reopens with it.
+  Future<void> _saveStyle() async {
+    final id = widget.documentId;
+    if (id == null) return;
+    final existing = await DocumentsRepository.find(id);
+    if (existing == null) return;
+    final spec = _isCustomized ? _spec!.toJson() : null;
+    if (existing.templateId == widget.template.name && jsonEncode(existing.customStyleSpec) == jsonEncode(spec)) {
+      return;
+    }
+    await DocumentsRepository.save(DocumentEntry(
+      id: existing.id,
+      kind: existing.kind,
+      title: existing.title,
+      templateId: widget.template.name,
+      updatedAt: DateTime.now(),
+      isFavorite: existing.isFavorite,
+      companyLabel: existing.companyLabel,
+      roleLabel: existing.roleLabel,
+      customStyleSpec: spec,
+      completionPercent: existing.completionPercent,
+      payload: existing.payload,
+    ));
+    if (mounted) showToast(context, 'Style saved', tone: ToastTone.success);
   }
 
   // google_mlkit_translation only ships native support for Android/iOS.
@@ -130,6 +199,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
       if (!mounted) return;
       setState(() {
         _translatedLanguage = language;
+        _renderData = translated;
         _pdfFuture = _generatePdf(translated);
       });
     } catch (_) {
@@ -222,12 +292,14 @@ class _PreviewScreenState extends State<PreviewScreen> {
   void _revertTranslation() {
     setState(() {
       _translatedLanguage = null;
+      _renderData = widget.resumeData;
       _pdfFuture = _generatePdf(widget.resumeData);
     });
   }
 
   @override
   void dispose() {
+    _rerender?.cancel();
     _setScreenshotBlocking(false);
     super.dispose();
   }
@@ -266,7 +338,10 @@ class _PreviewScreenState extends State<PreviewScreen> {
       isFavorite: existing.isFavorite,
       companyLabel: existing.companyLabel,
       roleLabel: existing.roleLabel,
-      customStyleSpec: existing.customStyleSpec,
+      // Design-spec templates carry their customization (or none);
+      // others keep whatever the document had.
+      customStyleSpec:
+          _presetSpec != null ? (_isCustomized ? _spec!.toJson() : null) : existing.customStyleSpec,
       completionPercent: widget.resumeData.completionPercent,
       payload: widget.resumeData.toJson(),
     ));
@@ -301,7 +376,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
   Widget build(BuildContext context) {
     final translated = _translatedLanguage;
     return PreviewScaffold(
-      title: _templateTitles[widget.template]!,
+      title: _templateTitles[widget.template] ?? '${resumeTemplateLabel(widget.template)} Resume',
       subtitle: widget.isSample ? 'Template preview' : 'Your resume',
       isPro: widget.template.isPremium,
       pdf: _pdfFuture,
@@ -319,7 +394,8 @@ class _PreviewScreenState extends State<PreviewScreen> {
           ? const []
           : [
               PreviewTool(icon: LucideIcons.languages, label: 'Translate', onTap: _openTranslateSheet),
-              PreviewTool(icon: LucideIcons.mail, label: 'Cover letter', onTap: _onGenerateCoverLetterPressed),
+              if (_spec != null) PreviewTool(icon: LucideIcons.palette, label: 'Style', onTap: _openStyle),
+              PreviewTool(icon: LucideIcons.mail, label: 'Letter', onTap: _onGenerateCoverLetterPressed),
               PreviewTool(
                 icon: LucideIcons.messageSquareText,
                 label: 'Interview',

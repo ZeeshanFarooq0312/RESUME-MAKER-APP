@@ -9,6 +9,7 @@ import '../models/document_entry.dart';
 import '../models/template_kind.dart';
 import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
+import '../pdf/resume_design_presets.dart';
 
 // Renders a real, low-res snapshot of a template's first page (filled with
 // sample data) so users can see what a template actually looks like before
@@ -34,11 +35,13 @@ class _TemplateThumbnailState extends State<TemplateThumbnail> {
     final cached = _cache[_cacheKey];
     if (cached != null) return cached;
 
-    final fontBytes = await PdfFonts.loadBytes();
+    final fontBytes = await PdfFonts.loadBytes(
+      extra: widget.kind == DocumentKind.resume ? resumeFontsFor(widget.template as ResumeTemplate) : const {},
+    );
     final kind = widget.kind;
     final template = widget.template;
     final pdfBytes = await Isolate.run(() async {
-      PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold);
+      PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold, fontBytes.extras);
       switch (kind) {
         case DocumentKind.resume:
           final doc = await buildResumeDoc(template as ResumeTemplate, sampleResumeData());

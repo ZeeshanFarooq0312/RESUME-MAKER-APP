@@ -8,33 +8,45 @@ import 'auth/auth_kit.dart';
 import 'filter_chip_row.dart';
 import 'template_thumbnail.dart';
 
-enum _Collection { popular, ats, creative }
+enum _Collection { fresh, popular, ats, creative }
 
 const _collections = {
+  _Collection.fresh: [
+    ResumeTemplate.aurora,
+    ResumeTemplate.meridian,
+    ResumeTemplate.vivid,
+    ResumeTemplate.heritage,
+    ResumeTemplate.nova,
+    ResumeTemplate.graphite,
+  ],
   _Collection.popular: [
     ResumeTemplate.modern,
+    ResumeTemplate.aurora,
     ResumeTemplate.classic,
+    ResumeTemplate.sterling,
     ResumeTemplate.professional,
-    ResumeTemplate.elegant,
-    ResumeTemplate.executive,
+    ResumeTemplate.horizon,
   ],
   _Collection.ats: [
     ResumeTemplate.classic,
+    ResumeTemplate.sterling,
     ResumeTemplate.minimal,
-    ResumeTemplate.professional,
+    ResumeTemplate.ivy,
     ResumeTemplate.harvard,
-    ResumeTemplate.compact,
+    ResumeTemplate.meridian,
   ],
   _Collection.creative: [
+    ResumeTemplate.nova,
     ResumeTemplate.creative,
+    ResumeTemplate.ember,
+    ResumeTemplate.vivid,
     ResumeTemplate.timeline,
-    ResumeTemplate.elegant,
-    ResumeTemplate.modern,
-    ResumeTemplate.simpleBold,
+    ResumeTemplate.quartz,
   ],
 };
 
 const _collectionLabels = {
+  _Collection.fresh: 'New',
   _Collection.popular: 'Popular',
   _Collection.ats: 'ATS-friendly',
   _Collection.creative: 'Creative',
@@ -55,7 +67,7 @@ class TemplateShowcase extends StatefulWidget {
 }
 
 class _TemplateShowcaseState extends State<TemplateShowcase> {
-  _Collection _collection = _Collection.popular;
+  _Collection _collection = _Collection.fresh;
   final _scroll = ScrollController();
 
   @override
