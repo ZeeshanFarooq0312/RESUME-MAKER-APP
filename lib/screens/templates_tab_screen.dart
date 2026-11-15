@@ -15,6 +15,7 @@ import 'cover_letter_preview_screen.dart';
 import 'form_screen.dart';
 import 'preview_screen.dart';
 import 'template_screen.dart' show resumeTemplateTaglines;
+import '../pdf/resume_design_presets.dart';
 import 'proposal_form_screen.dart';
 import 'proposal_preview_screen.dart';
 
@@ -124,6 +125,8 @@ class _TemplatesTabScreenState extends State<TemplatesTabScreen> {
 
   String? _subtitleFor(_TemplateOption o) {
     if (o.template is ResumeTemplate) return resumeTemplateTaglines[o.template];
+    final design = designFor(o.template);
+    if (design != null) return design.tagline;
     return o.premium ? 'Pro' : 'Free';
   }
 

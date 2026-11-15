@@ -14,13 +14,17 @@ class ResumePdfImporter {
   /// null if the user cancels the file picker. Throws
   /// [ResumeImportException] if the PDF has no extractable text (e.g. a
   /// scanned/image-only PDF) or can't be read.
-  static Future<String?> pickAndExtractText() async {
+  ///
+  /// [onPicked] runs once a file is chosen, before it's read, so callers can
+  /// show progress only after the picker closes instead of behind it.
+  static Future<String?> pickAndExtractText({void Function()? onPicked}) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );
     final path = result?.files.single.path;
     if (path == null) return null;
+    onPicked?.call();
 
     String text;
     try {

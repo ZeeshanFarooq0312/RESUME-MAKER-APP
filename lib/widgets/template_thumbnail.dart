@@ -36,7 +36,7 @@ class _TemplateThumbnailState extends State<TemplateThumbnail> {
     if (cached != null) return cached;
 
     final fontBytes = await PdfFonts.loadBytes(
-      extra: widget.kind == DocumentKind.resume ? resumeFontsFor(widget.template as ResumeTemplate) : const {},
+      extra: documentFontsFor(widget.template as Enum),
     );
     final kind = widget.kind;
     final template = widget.template;

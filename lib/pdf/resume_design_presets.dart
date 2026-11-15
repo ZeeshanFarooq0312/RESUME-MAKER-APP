@@ -181,3 +181,19 @@ Set<PdfFontFamily> resumeFontsFor(ResumeTemplate template) {
   final design = resumeDesignPresets[template];
   return design == null ? const {} : DynamicResumeTemplate.fontsFor(design.spec);
 }
+
+/// The design-spec design behind any document template — resume, cover
+/// letter or proposal — matched by name, so "aurora" means the same design
+/// for all three (a matching set). Null for hand-built templates.
+ResumeDesign? designFor(Enum template) {
+  for (final e in resumeDesignPresets.entries) {
+    if (e.key.name == template.name) return e.value;
+  }
+  return null;
+}
+
+/// The extra font families any document template needs.
+Set<PdfFontFamily> documentFontsFor(Enum template) {
+  final design = designFor(template);
+  return design == null ? const {} : DynamicResumeTemplate.fontsFor(design.spec);
+}

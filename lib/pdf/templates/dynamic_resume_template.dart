@@ -6,6 +6,7 @@ import '../../models/resume_data.dart';
 import '../../models/template_style_spec.dart';
 import '../pdf_fonts.dart';
 import '../pdf_helpers.dart';
+import 'design_kit.dart';
 
 /// The design-spec template engine: renders a resume from a
 /// [TemplateStyleSpec] (layout × fonts × color × heading style × density)
@@ -14,58 +15,20 @@ import '../pdf_helpers.dart';
 /// Uses MultiPage so long resumes flow onto extra pages — sidebar layouts
 /// included, via Partitions — rather than being clipped.
 class DynamicResumeTemplate {
-  static const _palette = <TemplateAccentColor, PdfColor>{
-    TemplateAccentColor.violet: PdfColor.fromInt(0xFF6C5DD3),
-    TemplateAccentColor.forestGreen: PdfColor.fromInt(0xFF1F6F54),
-    TemplateAccentColor.navyBlue: PdfColor.fromInt(0xFF2C5C8A),
-    TemplateAccentColor.burgundy: PdfColor.fromInt(0xFFB0413E),
-    TemplateAccentColor.gold: PdfColor.fromInt(0xFFB8862F),
-    TemplateAccentColor.charcoal: PdfColor.fromInt(0xFF2A2A33),
-    TemplateAccentColor.teal: PdfColor.fromInt(0xFF1A6B70),
-    TemplateAccentColor.slate: PdfColor.fromInt(0xFF1B2430),
-    TemplateAccentColor.plum: PdfColor.fromInt(0xFF6B2F5E),
-    TemplateAccentColor.rust: PdfColor.fromInt(0xFFB4532A),
-    TemplateAccentColor.ocean: PdfColor.fromInt(0xFF1F5FA8),
-    TemplateAccentColor.black: PdfColor.fromInt(0xFF111111),
-  };
-
-  static const _fonts = <TemplateFont, PdfFontFamily>{
-    TemplateFont.lato: PdfFontFamily.lato,
-    TemplateFont.poppins: PdfFontFamily.poppins,
-    TemplateFont.ptSerif: PdfFontFamily.ptSerif,
-    TemplateFont.ptSans: PdfFontFamily.ptSans,
-    TemplateFont.crimsonText: PdfFontFamily.crimsonText,
-    TemplateFont.plexSerif: PdfFontFamily.plexSerif,
-  };
-
   /// ARGB value of an accent color, so UI swatches match the PDF exactly.
-  static int accentArgb(TemplateAccentColor c) => _palette[c]!.toInt();
+  static int accentArgb(TemplateAccentColor c) => DesignKit.palette[c]!.toInt();
 
   /// The font families [spec] needs, so callers load only those bytes.
-  static Set<PdfFontFamily> fontsFor(TemplateStyleSpec spec) => {_fonts[spec.headingFont]!, _fonts[spec.bodyFont]!};
+  static Set<PdfFontFamily> fontsFor(TemplateStyleSpec spec) => DesignKit.fontsFor(spec);
 
-  static const _ink = PdfColor.fromInt(0xFF222222);
-  static const _muted = PdfColor.fromInt(0xFF666666);
-
-  /// [c] blended toward white by [amount] (0 = c, 1 = white).
-  static PdfColor _mix(PdfColor c, double amount) => PdfColor(
-        c.red + (1 - c.red) * amount,
-        c.green + (1 - c.green) * amount,
-        c.blue + (1 - c.blue) * amount,
-      );
+  static const _ink = DesignKit.ink;
+  static const _muted = DesignKit.muted;
+  static PdfColor _mix(PdfColor c, double amount) => DesignKit.mix(c, amount);
 
   static Future<pw.Document> build(ResumeData data, TemplateStyleSpec spec) async {
-    final base = await PdfFonts.theme();
-    final head = PdfFonts.family(_fonts[spec.headingFont]!);
-    final body = PdfFonts.family(_fonts[spec.bodyFont]!);
-    final latoRegular = base.defaultTextStyle.font!;
-    final theme = pw.ThemeData.withFont(
-      base: body.regular,
-      bold: body.bold,
-      fontFallback: [latoRegular],
-    );
+    final (theme, kit) = await DesignKit.load(spec);
     final doc = pw.Document(theme: theme);
-    final r = _Renderer(data, spec, _palette[spec.accentColor]!, head.bold, head.regular);
+    final r = _Renderer(data, kit);
 
     switch (spec.layoutVariant) {
       case TemplateLayoutVariant.sidebarLeft:
@@ -81,87 +44,20 @@ class DynamicResumeTemplate {
   }
 }
 
-class _Renderer {
+class _Renderer extends DesignKit {
   final ResumeData data;
-  final TemplateStyleSpec spec;
-  final PdfColor accent;
-  final pw.Font headBold;
-  final pw.Font headRegular;
 
-  _Renderer(this.data, this.spec, this.accent, this.headBold, this.headRegular);
+  _Renderer(this.data, DesignKit kit) : super(kit.spec, kit.accent, kit.headBold, kit.headRegular);
 
   PersonalInfo get info => data.personalInfo;
-  PdfColor get tint => DynamicResumeTemplate._mix(accent, 0.88);
-
-  double get _scale => switch (spec.density) {
-        TemplateDensity.compact => 0.82,
-        TemplateDensity.comfortable => 1.0,
-        TemplateDensity.spacious => 1.22,
-      };
-  double sp(double v) => v * _scale;
-
   String get name => info.fullName.isEmpty ? 'Your Name' : info.fullName;
-
-  // ---------------------------------------------------------------------------
-  // Pieces
-  // ---------------------------------------------------------------------------
-
-  pw.Widget heading(String text, {bool onDark = false}) {
-    final label = text.toUpperCase();
-    final color = onDark ? PdfColors.white : accent;
-    final pad = pw.EdgeInsets.only(bottom: sp(8));
-    switch (spec.headingStyle) {
-      case TemplateHeadingStyle.caps:
-        return pw.Padding(
-          padding: pad,
-          child: pw.Text(label, style: pw.TextStyle(font: headBold, fontSize: 10.5, letterSpacing: 1.6, color: color)),
-        );
-      case TemplateHeadingStyle.underline:
-        return pw.Container(
-          margin: pad,
-          padding: const pw.EdgeInsets.only(bottom: 3),
-          decoration: pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: color, width: 1.2))),
-          child: pw.Row(children: [
-            pw.Expanded(
-              child: pw.Text(label,
-                  style: pw.TextStyle(font: headBold, fontSize: 10.5, letterSpacing: 1.2, color: color)),
-            ),
-          ]),
-        );
-      case TemplateHeadingStyle.bar:
-        return pw.Padding(
-          padding: pad,
-          child: pw.Row(children: [
-            pw.Container(width: 3, height: 12, color: color),
-            pw.SizedBox(width: 8),
-            pw.Text(label,
-                style: pw.TextStyle(
-                    font: headBold, fontSize: 10.5, letterSpacing: 1.2, color: onDark ? PdfColors.white : DynamicResumeTemplate._ink)),
-          ]),
-        );
-      case TemplateHeadingStyle.pill:
-        return pw.Padding(
-          padding: pad,
-          child: pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: pw.BoxDecoration(
-              color: onDark ? DynamicResumeTemplate._mix(accent, 0.25) : tint,
-              borderRadius: pw.BorderRadius.circular(10),
-            ),
-            child: pw.Text(label,
-                style: pw.TextStyle(
-                    font: headBold, fontSize: 9.5, letterSpacing: 1.2, color: onDark ? PdfColors.white : accent)),
-          ),
-        );
-    }
-  }
 
   pw.Widget summary() => pw.Padding(
         padding: pw.EdgeInsets.only(bottom: sp(16)),
         child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           heading('Profile'),
           pw.Text(info.summary,
-              style: pw.TextStyle(fontSize: 10.2, lineSpacing: 2.5 * _scale, color: DynamicResumeTemplate._ink)),
+              style: pw.TextStyle(fontSize: 10.2, lineSpacing: 2.5 * scale, color: DynamicResumeTemplate._ink)),
         ]),
       );
 

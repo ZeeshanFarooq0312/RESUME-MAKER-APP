@@ -6,6 +6,8 @@ import 'package:uuid/uuid.dart';
 import '../models/document_entry.dart';
 import '../models/proposal_data.dart';
 import '../models/template_kind.dart';
+import '../models/template_style_spec.dart';
+import '../pdf/resume_design_presets.dart';
 import '../services/ai_usage_tracker.dart';
 import '../services/documents_repository.dart';
 import '../services/groq_service.dart';
@@ -77,6 +79,26 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
   Future<void> _onExport() async {
     await _saveEntry();
     if (!mounted) return;
+    final stored = await DocumentsRepository.find(_entryId);
+    if (!mounted) return;
+    final customSpec = stored?.customStyleSpec ?? widget.entry?.customStyleSpec;
+    final storedTemplate = ProposalTemplate.values.where((t) => t.name == stored?.templateId).firstOrNull;
+    if (storedTemplate != null && customSpec != null && designFor(storedTemplate) != null) {
+      // A customized design reopens straight into that design.
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProposalPreviewScreen(
+            data: data,
+            template: storedTemplate,
+            documentId: _entryId,
+            isPremium: storedTemplate.isPremium,
+            styleOverride: TemplateStyleSpec.fromJson(customSpec),
+          ),
+        ),
+      );
+      return;
+    }
     final template = widget.initialTemplate;
     Navigator.push(
       context,
