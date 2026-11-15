@@ -31,7 +31,7 @@ final resumeTemplateTaglines = <ResumeTemplate, String>{
 };
 
 /// "simpleBold" -> "Simple Bold".
-String resumeTemplateLabel(ResumeTemplate t) {
+String resumeTemplateLabel(Enum t) {
   final s = t.name.replaceAllMapped(RegExp(r'([a-z])([A-Z])'), (m) => '${m[1]} ${m[2]}');
   return s[0].toUpperCase() + s.substring(1);
 }

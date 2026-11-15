@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:isolate';
 import 'dart:typed_data';
@@ -9,11 +11,17 @@ import '../widgets/preview_scaffold.dart';
 import '../models/template_kind.dart';
 import 'ai_guard.dart';
 import 'package:printing/printing.dart';
+import 'template_screen.dart' show resumeTemplateLabel;
 import 'package:screen_protector/screen_protector.dart';
 import '../models/cover_letter_data.dart';
 import '../models/document_entry.dart';
 import '../pdf/pdf_builder.dart';
+import '../pdf/templates/design_kit.dart';
 import '../pdf/pdf_fonts.dart';
+import '../pdf/resume_design_presets.dart';
+import '../models/template_style_spec.dart';
+import '../widgets/app_feedback.dart';
+import '../widgets/design_customizer.dart';
 import '../services/documents_repository.dart';
 import '../services/subscription_repository.dart';
 import 'cover_letter_template_screen.dart';
@@ -34,6 +42,9 @@ class CoverLetterPreviewScreen extends StatefulWidget {
   final bool isPremium;
   final VoidCallback? onUseTemplate;
 
+  /// A document's saved customization of a design-spec template.
+  final TemplateStyleSpec? styleOverride;
+
   const CoverLetterPreviewScreen({
     super.key,
     required this.data,
@@ -42,6 +53,7 @@ class CoverLetterPreviewScreen extends StatefulWidget {
     this.isSample = false,
     this.isPremium = false,
     this.onUseTemplate,
+    this.styleOverride,
   });
 
   @override
@@ -50,7 +62,14 @@ class CoverLetterPreviewScreen extends StatefulWidget {
 
 class _CoverLetterPreviewScreenState extends State<CoverLetterPreviewScreen> {
   bool _downloading = false;
-  late final Future<Uint8List> _pdfFuture = _generatePdf();
+  late Future<Uint8List> _pdfFuture = _generatePdf();
+
+  /// The design spec for matching-set designs (null for hand-built ones),
+  /// including any customization from the Style panel.
+  late TemplateStyleSpec? _spec = widget.styleOverride ?? _presetSpec;
+  TemplateStyleSpec? get _presetSpec => designFor(widget.template)?.spec;
+  bool get _isCustomized => _spec != null && _spec!.encode() != _presetSpec?.encode();
+  Timer? _rerender;
 
   @override
   void initState() {
@@ -60,19 +79,69 @@ class _CoverLetterPreviewScreenState extends State<CoverLetterPreviewScreen> {
 
   @override
   void dispose() {
+    _rerender?.cancel();
     _setScreenshotBlocking(false);
     super.dispose();
   }
 
   Future<Uint8List> _generatePdf() async {
-    final fontBytes = await PdfFonts.loadBytes();
+    final spec = _spec;
+    final fontBytes = await PdfFonts.loadBytes(
+      extra: spec != null ? DesignKit.fontsFor(spec) : documentFontsFor(widget.template),
+    );
     final template = widget.template;
     final data = widget.data;
     return Isolate.run(() async {
-      PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold);
-      final doc = await buildCoverLetterDoc(template, data);
+      PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold, fontBytes.extras);
+      final doc = spec != null ? await buildDynamicCoverLetterDoc(data, spec) : await buildCoverLetterDoc(template, data);
       return doc.save();
     });
+  }
+
+  Future<void> _openStyle() async {
+    final original = _presetSpec;
+    final current = _spec;
+    if (original == null || current == null) return;
+    await showDesignCustomizer(
+      context,
+      initial: current,
+      original: original,
+      onChanged: (next) {
+        _spec = next;
+        // Re-render shortly after the last tap rather than on every one.
+        _rerender?.cancel();
+        _rerender = Timer(const Duration(milliseconds: 220), () {
+          if (mounted) setState(() => _pdfFuture = _generatePdf());
+        });
+      },
+    );
+    await _saveStyle();
+  }
+
+  /// Stores the customization on the document so it reopens with it.
+  Future<void> _saveStyle() async {
+    final id = widget.documentId;
+    if (id == null) return;
+    final existing = await DocumentsRepository.find(id);
+    if (existing == null) return;
+    final spec = _isCustomized ? _spec!.toJson() : null;
+    if (existing.templateId == widget.template.name && jsonEncode(existing.customStyleSpec) == jsonEncode(spec)) {
+      return;
+    }
+    await DocumentsRepository.save(DocumentEntry(
+      id: existing.id,
+      kind: existing.kind,
+      title: existing.title,
+      templateId: widget.template.name,
+      updatedAt: DateTime.now(),
+      isFavorite: existing.isFavorite,
+      companyLabel: existing.companyLabel,
+      roleLabel: existing.roleLabel,
+      customStyleSpec: spec,
+      completionPercent: existing.completionPercent,
+      payload: existing.payload,
+    ));
+    if (mounted) showToast(context, 'Style saved', tone: ToastTone.success);
   }
 
   void _setScreenshotBlocking(bool enabled) {
@@ -103,7 +172,8 @@ class _CoverLetterPreviewScreenState extends State<CoverLetterPreviewScreen> {
       isFavorite: existing.isFavorite,
       companyLabel: existing.companyLabel,
       roleLabel: existing.roleLabel,
-      customStyleSpec: existing.customStyleSpec,
+      customStyleSpec:
+          _presetSpec != null ? (_isCustomized ? _spec!.toJson() : null) : existing.customStyleSpec,
       completionPercent: widget.data.completionPercent,
       payload: widget.data.toJson(),
     ));
@@ -130,7 +200,7 @@ class _CoverLetterPreviewScreenState extends State<CoverLetterPreviewScreen> {
   @override
   Widget build(BuildContext context) {
     return PreviewScaffold(
-      title: _templateTitles[widget.template]!,
+      title: _templateTitles[widget.template] ?? '${resumeTemplateLabel(widget.template)} Cover Letter',
       subtitle: widget.isSample ? 'Template preview' : 'Your cover letter',
       isPro: widget.template.isPremium,
       pdf: _pdfFuture,
@@ -139,6 +209,7 @@ class _CoverLetterPreviewScreenState extends State<CoverLetterPreviewScreen> {
       tools: widget.isSample
           ? const []
           : [
+              if (_spec != null) PreviewTool(icon: LucideIcons.palette, label: 'Style', onTap: _openStyle),
               PreviewTool(
                 icon: LucideIcons.layoutTemplate,
                 label: 'Change template',

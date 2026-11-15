@@ -31,9 +31,55 @@ enum ResumeTemplate {
   prism,
 }
 
-enum CoverLetterTemplate { classic, modern, minimal, bold, formal }
+/// Cover letter designs. Values after `formal` are design-spec designs
+/// sharing the resume design of the same name (a matching set).
+enum CoverLetterTemplate {
+  classic,
+  modern,
+  minimal,
+  bold,
+  formal,
+  aurora,
+  meridian,
+  sterling,
+  vivid,
+  atlas,
+  heritage,
+  nova,
+  summit,
+  quartz,
+  ivy,
+  horizon,
+  ember,
+  graphite,
+  sage,
+  prism,
+}
 
-enum ProposalTemplate { classic, modern, minimal, corporate, executive }
+/// Proposal designs. Values after `executive` are design-spec designs
+/// sharing the resume design of the same name (a matching set).
+enum ProposalTemplate {
+  classic,
+  modern,
+  minimal,
+  corporate,
+  executive,
+  aurora,
+  meridian,
+  sterling,
+  vivid,
+  atlas,
+  heritage,
+  nova,
+  summit,
+  quartz,
+  ivy,
+  horizon,
+  ember,
+  graphite,
+  sage,
+  prism,
+}
 
 /// Single source of truth for which templates require Pro — read by the
 /// template picker (for the "PRO" badge) and by the preview screen's

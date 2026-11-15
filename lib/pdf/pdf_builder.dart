@@ -14,6 +14,7 @@ import 'templates/cover_letter_formal_template.dart';
 import 'templates/cover_letter_minimal_template.dart';
 import 'templates/cover_letter_modern_template.dart';
 import 'templates/creative_template.dart';
+import 'templates/dynamic_document_templates.dart';
 import 'templates/dynamic_resume_template.dart';
 import 'templates/elegant_template.dart';
 import 'templates/executive_template.dart';
@@ -75,6 +76,8 @@ Future<pw.Document> buildDynamicResumeDoc(ResumeData data, TemplateStyleSpec spe
 }
 
 Future<pw.Document> buildCoverLetterDoc(CoverLetterTemplate template, CoverLetterData data) {
+  final design = designFor(template);
+  if (design != null) return DynamicCoverLetterTemplate.build(data, design.spec);
   switch (template) {
     case CoverLetterTemplate.classic:
       return CoverLetterClassicTemplate.build(data);
@@ -86,10 +89,15 @@ Future<pw.Document> buildCoverLetterDoc(CoverLetterTemplate template, CoverLette
       return CoverLetterBoldTemplate.build(data);
     case CoverLetterTemplate.formal:
       return CoverLetterFormalTemplate.build(data);
+     default:
+      // Every other value is a design-spec design, handled above.
+      throw StateError('No renderer for $template');
   }
 }
 
 Future<pw.Document> buildProposalDoc(ProposalTemplate template, ProposalData data) {
+  final design = designFor(template);
+  if (design != null) return DynamicProposalTemplate.build(data, design.spec);
   switch (template) {
     case ProposalTemplate.classic:
       return ProposalClassicTemplate.build(data);
@@ -101,5 +109,15 @@ Future<pw.Document> buildProposalDoc(ProposalTemplate template, ProposalData dat
       return ProposalCorporateTemplate.build(data);
     case ProposalTemplate.executive:
       return ProposalExecutiveTemplate.build(data);
+     default:
+      // Every other value is a design-spec design, handled above.
+      throw StateError('No renderer for $template');
   }
 }
+
+/// Cover letter / proposal from an explicit (e.g. customized) design spec.
+Future<pw.Document> buildDynamicCoverLetterDoc(CoverLetterData data, TemplateStyleSpec spec) =>
+    DynamicCoverLetterTemplate.build(data, spec);
+
+Future<pw.Document> buildDynamicProposalDoc(ProposalData data, TemplateStyleSpec spec) =>
+    DynamicProposalTemplate.build(data, spec);
