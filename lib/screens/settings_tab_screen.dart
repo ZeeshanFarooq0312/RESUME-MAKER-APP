@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_feedback.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/account_repository.dart';
 import '../services/subscription_repository.dart';
+import '../services/theme_repository.dart';
 import '../theme/app_theme.dart';
-import '../widgets/shimmer_sweep.dart';
+import '../widgets/auth/auth_kit.dart';
+import '../widgets/responsive_scaffold.dart';
 import 'paywall_screen.dart';
 import 'profile_screen.dart';
 
@@ -37,29 +41,81 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
     return e.isNotEmpty ? e[0].toUpperCase() : '?';
   }
 
+  static const _themeIcons = {
+    ThemeMode.light: LucideIcons.sun,
+    ThemeMode.dark: LucideIcons.moon,
+    ThemeMode.system: LucideIcons.sunMoon,
+  };
+
+  static const _themeLabels = {
+    ThemeMode.light: 'Light',
+    ThemeMode.dark: 'Dark',
+    ThemeMode.system: 'Match system',
+  };
+
+  Future<void> _pickTheme(ThemeMode current) {
+    return showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        final p = AuthPalette.of(sheetContext);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Appearance',
+                  style: TextStyle(
+                      fontFamily: 'Fraunces', fontSize: 22, fontWeight: FontWeight.w600, color: p.title)),
+              const SizedBox(height: 14),
+              for (final mode in ThemeMode.values)
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  leading: Icon(_themeIcons[mode], color: mode == current ? p.title : p.muted),
+                  title: Text(_themeLabels[mode]!,
+                      style: TextStyle(
+                          fontWeight: mode == current ? FontWeight.w700 : FontWeight.w500, color: p.title)),
+                  trailing: mode == current ? Icon(LucideIcons.check, color: p.title) : null,
+                  onTap: () {
+                    ThemeRepository.setMode(mode);
+                    Navigator.pop(sheetContext);
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _logOut() async {
+    final confirmed = await showPromptSheet(
+      context,
+      icon: LucideIcons.logOut,
+      title: 'Log out?',
+      message: 'Your documents stay saved on this device. Log back in anytime to pick up where you left off.',
+      primaryLabel: 'Log out',
+      secondaryLabel: 'Cancel',
+    );
+    if (confirmed != true) return;
     await AccountRepository.logOut();
     AccountSession.loggedIn.value = false;
   }
 
   Future<void> _restore() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Restoring purchases…')),
-    );
+    showToast(context, 'Restoring purchases…', tone: ToastTone.info);
     try {
       await SubscriptionRepository.restore();
       if (!mounted) return;
       final isPro = SubscriptionSession.tier.value == SubscriptionTier.pro;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(isPro
+      showToast(context, isPro
             ? "Purchase restored — you're on Pro."
-            : 'No previous purchase found on this account.'),
-      ));
+            : 'No previous purchase found on this account.', tone: isPro ? ToastTone.success : ToastTone.info);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Couldn't restore purchases. Please try again.")),
-        );
+        showToast(context, "Couldn't restore purchases. Please try again.", tone: ToastTone.error);
       }
     }
   }
@@ -68,30 +124,21 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
     final uri = Uri.parse(_privacyPolicyUrl);
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Couldn't open the privacy policy.")),
-      );
+      showToast(context, "Couldn't open the privacy policy.", tone: ToastTone.error);
     }
   }
 
   Future<void> _clearAllData() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Clear all data?'),
-        content: const Text(
-          'This permanently deletes every saved resume, cover letter, and proposal on this '
-          'device. This cannot be undone.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Clear Everything'),
-          ),
-        ],
-      ),
+    final confirmed = await showPromptSheet(
+      context,
+      tone: PromptTone.error,
+      destructive: true,
+      icon: LucideIcons.trash2,
+      title: 'Clear all data?',
+      message: 'This permanently deletes every resume, cover letter and proposal on this device, '
+          "and signs you out. This can't be undone.",
+      primaryLabel: 'Clear everything',
+      secondaryLabel: 'Cancel',
     );
     if (confirmed != true) return;
     final prefs = await SharedPreferences.getInstance();
@@ -101,17 +148,17 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
     // sign out explicitly so "Clear Everything" actually starts fresh.
     await AccountRepository.logOut();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All data cleared.')),
-      );
+      showToast(context, 'All data cleared.', tone: ToastTone.success);
     }
     AccountSession.loggedIn.value = false;
   }
 
   Future<void> _deleteAccount() async {
-    final deleted = await showDialog<bool>(
+    final deleted = await showModalBottomSheet<bool>(
       context: context,
-      builder: (_) => const _DeleteAccountDialog(),
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const _DeleteAccountSheet(),
     );
     if (deleted == true) {
       // The Firebase user (and all local data) is gone — return to login.
@@ -121,86 +168,97 @@ class _SettingsTabScreenState extends State<SettingsTabScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      backgroundColor: p.background,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-          children: [
-            _ProfileHeader(name: _name, email: _email, initial: _initial),
-            const SizedBox(height: 22),
-            _PlanCard(onManage: () => Navigator.push(
-                context, MaterialPageRoute(builder: (_) => const PaywallScreen()))),
-            const SizedBox(height: 22),
-            _GroupCard(children: [
-              _SettingsRow(
-                icon: Icons.person_outline,
-                title: 'My Profile',
-                subtitle: 'Details used for AI resume tailoring',
-                onTap: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+        child: ResponsiveContentBound(
+          maxWidth: 720,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            children: [
+              Text(
+                'Settings',
+                style: TextStyle(
+                  fontFamily: 'Fraunces',
+                  fontSize: 28,
+                  height: 1.15,
+                  letterSpacing: -0.3,
+                  fontWeight: FontWeight.w600,
+                  color: p.title,
+                ),
               ),
-              if (SubscriptionRepository.isConfigured) ...[
-                const _RowDivider(),
+              const SizedBox(height: 20),
+              _ProfileHeader(name: _name, email: _email, initial: _initial),
+              const SizedBox(height: 14),
+              _PlanCard(
+                onManage: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen())),
+              ),
+              const _GroupLabel('Account'),
+              _GroupCard(children: [
                 _SettingsRow(
-                  icon: Icons.restore_rounded,
-                  title: 'Restore purchases',
-                  subtitle: 'Recover a subscription bought before',
-                  onTap: _restore,
+                  icon: LucideIcons.idCard,
+                  title: 'My profile',
+                  subtitle: 'Details AI uses to tailor your resumes',
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
                 ),
-              ],
-              const _RowDivider(),
-              _SettingsRow(
-                icon: Icons.privacy_tip_outlined,
-                title: 'Privacy Policy',
-                subtitle: 'How your data is handled',
-                onTap: _openPrivacyPolicy,
-              ),
-            ]),
-            const SizedBox(height: 22),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _logOut,
-                icon: const Icon(Icons.logout, size: 18),
-                label: const Text('Log Out'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton.icon(
-                  onPressed: _clearAllData,
-                  style: TextButton.styleFrom(foregroundColor: AppColors.slate600),
-                  icon: const Icon(Icons.delete_sweep_outlined, size: 18),
-                  label: const Text('Clear all data'),
+                ValueListenableBuilder<ThemeMode>(
+                  valueListenable: ThemeSession.mode,
+                  builder: (context, mode, _) => _SettingsRow(
+                    icon: _themeIcons[mode]!,
+                    title: 'Appearance',
+                    value: _themeLabels[mode]!,
+                    onTap: () => _pickTheme(mode),
+                  ),
                 ),
-                const SizedBox(width: 4),
-                TextButton.icon(
-                  onPressed: _deleteAccount,
-                  style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-                  icon: const Icon(Icons.person_remove_outlined, size: 18),
-                  label: const Text('Delete account'),
+                if (SubscriptionRepository.isConfigured)
+                  _SettingsRow(
+                    icon: LucideIcons.rotateCcw,
+                    title: 'Restore purchases',
+                    subtitle: 'Bought Pro before? Get it back here',
+                    onTap: _restore,
+                  ),
+              ]),
+              const _GroupLabel('About'),
+              _GroupCard(children: [
+                _SettingsRow(
+                  icon: LucideIcons.shield,
+                  title: 'Privacy policy',
+                  subtitle: 'How your data is handled',
+                  trailingIcon: LucideIcons.externalLink,
+                  onTap: _openPrivacyPolicy,
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const Center(
-              child: Text(
-                'Resume Builder · v1.0.0',
-                style: TextStyle(color: AppColors.slate400, fontSize: 12),
-              ),
-            ),
-          ],
+                const _SettingsRow(icon: LucideIcons.info, title: 'Version', value: '1.0.1'),
+              ]),
+              const SizedBox(height: 14),
+              _GroupCard(children: [
+                _SettingsRow(icon: LucideIcons.logOut, title: 'Log out', onTap: _logOut, showChevron: false),
+              ]),
+              const _GroupLabel('Danger zone'),
+              _GroupCard(children: [
+                _SettingsRow(
+                  icon: LucideIcons.trash2,
+                  title: 'Clear all data',
+                  subtitle: 'Delete every document on this device',
+                  danger: true,
+                  onTap: _clearAllData,
+                ),
+                _SettingsRow(
+                  icon: LucideIcons.userX,
+                  title: 'Delete account',
+                  subtitle: 'Permanently remove your account',
+                  danger: true,
+                  onTap: _deleteAccount,
+                ),
+              ]),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Avatar + name/email at the top — reads as an actual account screen
-/// instead of a labelled "Account" card in a stack of cards.
 class _ProfileHeader extends StatelessWidget {
   final String name;
   final String email;
@@ -209,184 +267,126 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 58,
-          height: 58,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColors.accentGold, AppColors.accentGoldDeep],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            shape: BoxShape.circle,
+    final p = AuthPalette.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: p.fieldBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(color: AppColors.accentGold, shape: BoxShape.circle),
+            child: initial == '?'
+                ? const Icon(LucideIcons.user, color: AppColors.ink, size: 24)
+                : Text(initial,
+                    style: const TextStyle(color: AppColors.ink, fontWeight: FontWeight.w700, fontSize: 21)),
           ),
-          child: Text(
-            initial,
-            style: const TextStyle(color: AppColors.ink, fontWeight: FontWeight.w700, fontSize: 24),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
-              ),
-              if (email.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.slate600, fontSize: 13),
-                ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16.5, color: p.title)),
+                if (email.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(email,
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: p.body, fontSize: 13.5)),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-/// The dark ink/gold subscription card, reacting to the current tier.
+/// Flat dark plan card (same surface as Home's hero), reacting to the tier.
 class _PlanCard extends StatelessWidget {
   final VoidCallback onManage;
   const _PlanCard({required this.onManage});
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return ValueListenableBuilder<SubscriptionTier>(
       valueListenable: SubscriptionSession.tier,
       builder: (context, tier, _) {
         final isPro = tier == SubscriptionTier.pro;
-        final title = isPro ? 'Pro plan' : 'Basic plan';
-        final description = isPro
-            ? 'Unlimited AI and every template unlocked to download.'
-            : 'Upgrade to download premium templates and get unlimited AI.';
-        return ShimmerSweep(
-          borderRadius: BorderRadius.circular(22),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColors.ink, AppColors.slate900, AppColors.primaryDark],
-              ),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                FloatBob(
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [AppColors.accentGold, AppColors.accentGoldDeep],
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.workspace_premium_rounded, color: AppColors.ink),
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: dark ? AppColors.slate900 : AppColors.ink,
+            borderRadius: BorderRadius.circular(18),
+            border: dark ? Border.all(color: AppColors.slate800) : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(color: AppColors.accentGold, borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(LucideIcons.crown, color: AppColors.ink, size: 20),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15.5),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.accentGold.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              isPro ? 'PRO' : 'FREE',
-                              style: const TextStyle(
-                                color: AppColors.accentGold,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        description,
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.65), fontSize: 12.5, height: 1.4),
-                      ),
-                      const SizedBox(height: 14),
-                      if (!isPro)
-                        InkWell(
-                          borderRadius: BorderRadius.circular(11),
-                          onTap: onManage,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                  colors: [AppColors.accentGold, AppColors.accentGoldDeep]),
-                              borderRadius: BorderRadius.circular(11),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Upgrade to Pro',
-                                  style: TextStyle(
-                                      color: AppColors.ink, fontWeight: FontWeight.w700, fontSize: 12.5),
-                                ),
-                                SizedBox(width: 6),
-                                Icon(Icons.arrow_forward_rounded, size: 14, color: AppColors.ink),
-                              ],
-                            ),
-                          ),
-                        )
-                      else
-                        InkWell(
-                          onTap: onManage,
-                          child: Text(
-                            'Manage plan',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12.5,
-                              decoration: TextDecoration.underline,
-                              decorationColor: Colors.white.withValues(alpha: 0.5),
-                            ),
-                          ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(isPro ? 'Pro plan' : 'Free plan',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
+                        const SizedBox(height: 2),
+                        Text(
+                          isPro ? 'Unlimited AI and every template' : 'Limited daily AI and free templates',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13),
                         ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: isPro
+                    ? OutlinedButton(
+                        onPressed: onManage,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w600),
+                        ),
+                        child: const Text('Manage plan'),
+                      )
+                    : FilledButton(
+                        onPressed: onManage,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.accentGold,
+                          foregroundColor: AppColors.ink,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w700),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [Text('Upgrade to Pro'), SizedBox(width: 6), Icon(LucideIcons.arrowRight, size: 16)],
+                        ),
+                      ),
+              ),
+            ],
           ),
         );
       },
@@ -394,44 +394,62 @@ class _PlanCard extends StatelessWidget {
   }
 }
 
-/// A white rounded container that groups tappable rows, with hairline
-/// dividers between them — one card instead of several labelled sections.
+class _GroupLabel extends StatelessWidget {
+  final String text;
+  const _GroupLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 24, 4, 10),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 1.1, color: p.muted),
+      ),
+    );
+  }
+}
+
+/// Rounded group of rows with hairline dividers.
 class _GroupCard extends StatelessWidget {
   final List<Widget> children;
   const _GroupCard({required this.children});
 
   @override
   Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
     return Container(
       clipBehavior: Clip.antiAlias,
-      decoration: AppDecorations.card(),
-      child: Column(children: children),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: p.fieldBorder),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, indent: 64, color: p.fieldBorder),
+            children[i],
+          ],
+        ],
+      ),
     );
-  }
-}
-
-class _RowDivider extends StatelessWidget {
-  const _RowDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Divider(height: 1, thickness: 1, indent: 68, color: AppColors.cardBorder);
   }
 }
 
 /// Confirms and performs permanent account deletion. Collects the password
 /// because Firebase requires a recent re-authentication before it will delete
 /// an account — which also makes this a genuine "are you the owner" gate.
-class _DeleteAccountDialog extends StatefulWidget {
-  const _DeleteAccountDialog();
+class _DeleteAccountSheet extends StatefulWidget {
+  const _DeleteAccountSheet();
 
   @override
-  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+  State<_DeleteAccountSheet> createState() => _DeleteAccountSheetState();
 }
 
-class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
   final _password = TextEditingController();
-  bool _obscure = true;
   bool _busy = false;
   String? _error;
 
@@ -465,55 +483,73 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Delete account?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'This permanently deletes your account and every resume, cover letter, and '
-            'proposal tied to it. This cannot be undone.',
-            style: TextStyle(fontSize: 13, height: 1.4),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _password,
-            obscureText: _obscure,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: 'Confirm your password',
-              prefixIcon: const Icon(Icons.lock_outline),
-              suffixIcon: IconButton(
-                icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                onPressed: () => setState(() => _obscure = !_obscure),
+    final p = AuthPalette.of(context);
+    final inset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 0, 24, 20 + inset),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(LucideIcons.userX, color: AppColors.danger, size: 28),
               ),
             ),
-            onSubmitted: (_) => _confirm(),
-          ),
-          if (_error != null) ...[
+            const SizedBox(height: 18),
+            Text(
+              'Delete your account?',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontFamily: 'Fraunces', fontSize: 22, fontWeight: FontWeight.w600, color: p.title),
+            ),
             const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 12.5)),
+            Text(
+              'This permanently deletes your account and every resume, cover letter and proposal '
+              "tied to it. This can't be undone.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14.5, height: 1.5, color: p.body),
+            ),
+            const SizedBox(height: 22),
+            AuthField(
+              label: 'Confirm with your password',
+              hint: 'Your password',
+              icon: LucideIcons.lock,
+              controller: _password,
+              isPassword: true,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              errorText: _error,
+              onSubmitted: (_) => _confirm(),
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
+            ),
+            const SizedBox(height: 22),
+            AuthPrimaryButton(
+              label: 'Delete account',
+              color: AppColors.danger,
+              loading: _busy,
+              onPressed: _confirm,
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 46,
+              child: TextButton(
+                onPressed: _busy ? null : () => Navigator.pop(context, false),
+                style: TextButton.styleFrom(foregroundColor: p.body),
+                child: const Text('Cancel'),
+              ),
+            ),
           ],
-        ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-          onPressed: _busy ? null : _confirm,
-          child: _busy
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Delete'),
-        ),
-      ],
     );
   }
 }
@@ -521,46 +557,68 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
 class _SettingsRow extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String subtitle;
-  final VoidCallback onTap;
+  final String? subtitle;
+  final String? value;
+  final VoidCallback? onTap;
+  final bool danger;
+  final bool showChevron;
+  final IconData? trailingIcon;
 
   const _SettingsRow({
     required this.icon,
     required this.title,
-    required this.subtitle,
-    required this.onTap,
+    this.subtitle,
+    this.value,
+    this.onTap,
+    this.danger = false,
+    this.showChevron = true,
+    this.trailingIcon,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(10),
+    final p = AuthPalette.of(context);
+    final fg = danger ? AppColors.danger : p.title;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: danger ? AppColors.danger.withValues(alpha: 0.10) : p.background,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: fg, size: 18),
               ),
-              child: Icon(icon, color: AppColors.primary, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(color: AppColors.slate600, fontSize: 12)),
-                ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: fg)),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle!, style: TextStyle(color: p.body, fontSize: 12.5)),
+                    ],
+                  ],
+                ),
               ),
-            ),
-            const Icon(Icons.chevron_right, color: AppColors.slate400),
-          ],
+              if (value != null) ...[
+                const SizedBox(width: 8),
+                Text(value!, style: TextStyle(color: p.body, fontSize: 14)),
+              ],
+              if (onTap != null && showChevron) ...[
+                const SizedBox(width: 6),
+                Icon(trailingIcon ?? LucideIcons.chevronRight, size: 18, color: p.muted),
+              ],
+            ],
+          ),
         ),
       ),
     );

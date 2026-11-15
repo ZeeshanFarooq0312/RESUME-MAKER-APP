@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/cover_letter_data.dart';
@@ -21,6 +22,11 @@ class DocumentsRepository {
   static const _legacyCoverLetterKey = 'cover_letter_data_v1';
   static const _legacyProposalKey = 'proposal_data_v1';
 
+  /// Bumped after every write, so screens kept alive in the app shell's
+  /// IndexedStack (Home, Saved) can refresh when another screen changes a
+  /// document — e.g. hearting on Home updates Saved immediately.
+  static final ValueNotifier<int> revision = ValueNotifier(0);
+
   static Future<List<DocumentEntry>> loadAll() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_key) ?? [];
@@ -35,6 +41,7 @@ class DocumentsRepository {
     entries.removeWhere((e) => e.id == entry.id);
     entries.add(entry);
     await prefs.setStringList(_key, entries.map((e) => e.encode()).toList());
+    revision.value++;
   }
 
   static Future<void> delete(String id) async {
@@ -42,6 +49,7 @@ class DocumentsRepository {
     final entries = await loadAll();
     entries.removeWhere((e) => e.id == id);
     await prefs.setStringList(_key, entries.map((e) => e.encode()).toList());
+    revision.value++;
   }
 
   static Future<void> toggleFavorite(String id) async {
@@ -51,6 +59,7 @@ class DocumentsRepository {
     if (index == -1) return;
     entries[index].isFavorite = !entries[index].isFavorite;
     await prefs.setStringList(_key, entries.map((e) => e.encode()).toList());
+    revision.value++;
   }
 
   /// Wraps any pre-existing single-slot resume/cover-letter/proposal into

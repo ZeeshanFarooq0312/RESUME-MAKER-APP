@@ -1,6 +1,7 @@
 import 'package:pdf/widgets.dart' as pw;
 import '../../models/resume_data.dart';
 import '../pdf_fonts.dart';
+import '../pdf_helpers.dart';
 
 class ClassicTemplate {
   static Future<pw.Document> build(ResumeData data) async {
@@ -54,8 +55,10 @@ class ClassicTemplate {
                         if (e.description.isNotEmpty)
                           pw.Padding(
                             padding: const pw.EdgeInsets.only(top: 3),
-                            child: pw.Text(e.description,
-                                style: const pw.TextStyle(fontSize: 10)),
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: bulletLines(e.description, fontSize: 10),
+                            ),
                           ),
                       ],
                     ),

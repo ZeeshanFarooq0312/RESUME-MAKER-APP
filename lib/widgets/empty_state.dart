@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import 'auth/auth_kit.dart';
 
-/// Shared "nothing here yet" treatment — icon in a soft tinted circle,
-/// headline + subtext, optional CTA — replacing the single line of plain
-/// gray text previously duplicated across Favorites, Templates search, and
-/// Home's no-documents case.
+/// Shared "nothing here yet" treatment: icon in a soft tile, headline,
+/// short explanation, and an optional call to action.
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -23,42 +21,47 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: const BoxDecoration(
-                color: AppColors.primaryLight,
-                shape: BoxShape.circle,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: p.fieldBorder),
+                ),
+                child: Icon(icon, color: p.title, size: 30),
               ),
-              child: Icon(icon, color: AppColors.primary, size: 32),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 15.5,
-                color: AppColors.slate900,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.slate600, fontSize: 12.5, height: 1.4),
-            ),
-            if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 20),
-              OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontFamily: 'Fraunces', fontSize: 22, height: 1.2, fontWeight: FontWeight.w600, color: p.title),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: p.body, fontSize: 14.5, height: 1.5),
+              ),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: 220,
+                  child: AuthPrimaryButton(label: actionLabel!, onPressed: onAction),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

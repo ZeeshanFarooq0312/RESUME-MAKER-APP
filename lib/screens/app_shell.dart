@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import 'package:flutter/services.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons_600.dart';
+import '../widgets/auth/auth_kit.dart';
 import 'favorites_tab_screen.dart';
 import 'home_dashboard_screen.dart';
 import 'settings_tab_screen.dart';
@@ -15,34 +18,29 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
-  static const _screens = [
-    HomeDashboardScreen(),
-    TemplatesTabScreen(),
-    FavoritesTabScreen(),
-    SettingsTabScreen(),
+  late final _screens = [
+    HomeDashboardScreen(onOpenTemplates: () => setState(() => _index = 1)),
+    const TemplatesTabScreen(),
+    FavoritesTabScreen(onGoHome: () => setState(() => _index = 0)),
+    const SettingsTabScreen(),
   ];
 
   static const _items = [
-    (icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Home'),
-    (icon: Icons.grid_view_outlined, activeIcon: Icons.grid_view, label: 'Template'),
-    (icon: Icons.favorite_outline, activeIcon: Icons.favorite, label: 'Favorite'),
-    (icon: Icons.settings_outlined, activeIcon: Icons.settings, label: 'Settings'),
+    (icon: LucideIcons.house, activeIcon: LucideIcons600.house, label: 'Home'),
+    (icon: LucideIcons.layoutGrid, activeIcon: LucideIcons600.layoutGrid, label: 'Templates'),
+    (icon: LucideIcons.heart, activeIcon: LucideIcons600.heart, label: 'Saved'),
+    (icon: LucideIcons.settings, activeIcon: LucideIcons600.settings, label: 'Settings'),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
     return Scaffold(
       body: IndexedStack(index: _index, children: _screens),
       bottomNavigationBar: DecoratedBox(
         decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF1A1030).withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, -6),
-            ),
-          ],
+          color: p.surface,
+          border: Border(top: BorderSide(color: p.fieldBorder)),
         ),
         child: SafeArea(
           top: false,
@@ -69,10 +67,12 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-/// Pill highlight behind the active tab, replacing the stock
-/// BottomNavigationBar's plain icon-color swap — a small but very
-/// recognizable "designed" touch borrowed from most modern nav bars.
-class _NavItem extends StatelessWidget {
+/// Pill highlight behind the active tab.
+/// One bottom-nav tab. The only selection indicator is the pill behind the
+/// icon — no ink ripple, which previously drew a second highlight across the
+/// whole item on every tap. A press dips the icon slightly, and switching
+/// tabs gives a light haptic tick.
+class _NavItem extends StatefulWidget {
   final IconData icon;
   final IconData activeIcon;
   final String label;
@@ -88,36 +88,67 @@ class _NavItem extends StatelessWidget {
   });
 
   @override
+  State<_NavItem> createState() => _NavItemState();
+}
+
+class _NavItemState extends State<_NavItem> {
+  bool _pressed = false;
+
+  void _handleTap() {
+    if (!widget.selected) HapticFeedback.selectionClick();
+    widget.onTap();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primaryLight : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              selected ? activeIcon : icon,
-              color: selected ? AppColors.primary : AppColors.slate400,
-              size: 22,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                color: selected ? AppColors.primary : AppColors.slate400,
+    final p = AuthPalette.of(context);
+    final selected = widget.selected;
+    final color = selected ? p.title : p.muted;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: widget.label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTap: _handleTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                width: selected ? 60 : 44,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: selected ? p.primary.withValues(alpha: 0.10) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: AnimatedScale(
+                  scale: _pressed ? 0.86 : 1,
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.easeOut,
+                  child: Icon(selected ? widget.activeIcon : widget.icon, color: color, size: 22),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 11.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: color,
+                ),
+                child: Text(widget.label),
+              ),
+            ],
+          ),
         ),
       ),
     );

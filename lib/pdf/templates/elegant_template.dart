@@ -2,6 +2,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import '../../models/resume_data.dart';
 import '../pdf_fonts.dart';
+import '../pdf_helpers.dart';
 
 /// Centered, letter-spaced header and quiet uppercase section headings with
 /// a thin bottom rule — a restrained, editorial look, distinct from
@@ -66,8 +67,10 @@ class ElegantTemplate {
                         if (e.description.isNotEmpty)
                           pw.Padding(
                             padding: const pw.EdgeInsets.only(top: 4),
-                            child: pw.Text(e.description,
-                                style: const pw.TextStyle(fontSize: 10, lineSpacing: 1.4)),
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: bulletLines(e.description, fontSize: 10),
+                            ),
                           ),
                       ],
                     ),

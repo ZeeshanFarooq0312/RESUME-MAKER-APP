@@ -4,6 +4,7 @@ import '../models/cover_letter_data.dart';
 import '../models/proposal_data.dart';
 import '../models/resume_data.dart';
 import '../models/template_kind.dart';
+import '../models/template_style_spec.dart';
 import 'templates/classic_template.dart';
 import 'templates/compact_template.dart';
 import 'templates/cover_letter_bold_template.dart';
@@ -12,6 +13,7 @@ import 'templates/cover_letter_formal_template.dart';
 import 'templates/cover_letter_minimal_template.dart';
 import 'templates/cover_letter_modern_template.dart';
 import 'templates/creative_template.dart';
+import 'templates/dynamic_resume_template.dart';
 import 'templates/elegant_template.dart';
 import 'templates/executive_template.dart';
 import 'templates/harvard_template.dart';
@@ -54,6 +56,16 @@ Future<pw.Document> buildResumeDoc(ResumeTemplate template, ResumeData data) {
     case ResumeTemplate.timeline:
       return TimelineTemplate.build(data);
   }
+}
+
+/// Builds a resume from an AI-generated [TemplateStyleSpec] rather than a
+/// named [ResumeTemplate] — see DynamicResumeTemplate for the flexible
+/// renderer. Kept as a sibling function rather than folded into
+/// [buildResumeDoc]'s switch since [ResumeTemplate] is a closed enum with no
+/// "custom" case; callers route to this directly when a document's saved
+/// templateId is the "custom" sentinel.
+Future<pw.Document> buildDynamicResumeDoc(ResumeData data, TemplateStyleSpec spec) {
+  return DynamicResumeTemplate.build(data, spec);
 }
 
 Future<pw.Document> buildCoverLetterDoc(CoverLetterTemplate template, CoverLetterData data) {

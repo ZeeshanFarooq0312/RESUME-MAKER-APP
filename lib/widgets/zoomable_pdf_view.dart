@@ -3,7 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
-import '../theme/app_theme.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'auth/auth_kit.dart';
 
 /// A directly pinch-zoomable PDF preview. The printing package's `PdfPreview`
 /// only zooms after a double-tap; here every page is rasterized once and laid
@@ -19,7 +20,7 @@ class ZoomablePdfView extends StatelessWidget {
       future: pdf,
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const _PreviewLoading();
         }
         if (snap.hasError || snap.data == null) {
           return const _PreviewError();
@@ -66,7 +67,7 @@ class _RasterPagesState extends State<_RasterPages> {
       future: _pages,
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const _PreviewLoading();
         }
         final pages = snap.data ?? const <Uint8List>[];
         if (pages.isEmpty) return const _PreviewError();
@@ -130,18 +131,45 @@ class _PageCard extends StatelessWidget {
   }
 }
 
+class _PreviewLoading extends StatelessWidget {
+  const _PreviewLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2.6, color: p.title)),
+          const SizedBox(height: 14),
+          Text('Preparing preview…', style: TextStyle(fontSize: 13.5, color: p.body)),
+        ],
+      ),
+    );
+  }
+}
+
 class _PreviewError extends StatelessWidget {
   const _PreviewError();
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    final p = AuthPalette.of(context);
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text(
-          "Couldn't render this preview. Try again.",
-          textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.slate600),
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.fileX, size: 30, color: p.muted),
+            const SizedBox(height: 12),
+            Text("Couldn't show this preview",
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: p.title)),
+            const SizedBox(height: 4),
+            Text('Go back and open it again. Your document is safe.',
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, height: 1.4, color: p.body)),
+          ],
         ),
       ),
     );

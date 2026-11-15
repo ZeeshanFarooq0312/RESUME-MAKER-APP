@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import '../../models/resume_data.dart';
 import '../pdf_fonts.dart';
+import '../pdf_helpers.dart';
 
 class ModernTemplate {
   static const _navy = PdfColor.fromInt(0xFF1B2430);
@@ -137,8 +138,10 @@ class ModernTemplate {
                                 if (e.description.isNotEmpty)
                                   pw.Padding(
                                     padding: const pw.EdgeInsets.only(top: 4),
-                                    child: pw.Text(e.description,
-                                        style: const pw.TextStyle(fontSize: 9.5)),
+                                    child: pw.Column(
+                                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                      children: bulletLines(e.description, fontSize: 9.5),
+                                    ),
                                   ),
                               ],
                             ),

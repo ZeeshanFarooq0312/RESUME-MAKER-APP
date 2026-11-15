@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import '../../models/resume_data.dart';
 import '../pdf_fonts.dart';
+import '../pdf_helpers.dart';
 
 /// Full-width colored header banner, single-column body below with section
 /// headings rendered as colored background bars — a bolder, more visual
@@ -102,7 +103,10 @@ class CreativeTemplate {
                               if (e.description.isNotEmpty)
                                 pw.Padding(
                                   padding: const pw.EdgeInsets.only(top: 3),
-                                  child: pw.Text(e.description, style: const pw.TextStyle(fontSize: 10)),
+                                  child: pw.Column(
+                                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                    children: bulletLines(e.description, fontSize: 10),
+                                  ),
                                 ),
                             ],
                           ),

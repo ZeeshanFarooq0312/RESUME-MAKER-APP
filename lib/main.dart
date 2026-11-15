@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'services/subscription_repository.dart';
 import 'services/theme_repository.dart';
+import 'services/welcome_repository.dart';
 import 'theme/app_theme.dart';
 import 'screens/auth/auth_gate.dart';
 
@@ -18,7 +19,7 @@ void main() async {
   // The slow initializers (Firebase, RevenueCat) are deliberately NOT awaited
   // here: awaiting them kept the app on a blank white screen for seconds
   // before the first frame. They now run behind a splash inside [_Bootstrap].
-  await ThemeRepository.load();
+  await Future.wait([ThemeRepository.load(), WelcomeRepository.load()]);
   runApp(const ResumeBuilderApp());
 }
 
@@ -89,18 +90,9 @@ class _SplashScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 76,
-              height: 76,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.accentGold, AppColors.accentGoldDeep],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.all(Radius.circular(22)),
-              ),
-              child: const Icon(Icons.description_rounded, color: AppColors.ink, size: 40),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Image.asset('assets/icon/icon_master.png', width: 76, height: 76, fit: BoxFit.cover),
             ),
             const SizedBox(height: 22),
             const Text(
