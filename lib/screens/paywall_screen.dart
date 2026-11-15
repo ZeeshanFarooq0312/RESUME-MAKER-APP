@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_feedback.dart';
 import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
 import '../services/subscription_repository.dart';
 import '../theme/app_theme.dart';
-import '../widgets/shimmer_sweep.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../widgets/auth/auth_kit.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/template_thumbnail.dart';
+import '../models/document_entry.dart';
+import '../models/template_kind.dart';
 
 /// Reached from three places: a locked premium template, an exhausted AI
 /// daily limit, and Settings → Manage Subscription. There's a single paid
@@ -113,9 +119,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (!mounted) return;
     setState(() {
       _options = options;
-      _selected = options.isEmpty
-          ? null
-          : options.firstWhere((o) => o.label == 'Yearly', orElse: () => options.first);
+      _selected = options.isEmpty ? null : options.firstWhere((o) => o.label == 'Yearly', orElse: () => options.first);
       _loading = false;
     });
   }
@@ -130,12 +134,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
       // silently doing nothing, since the real payment sheet only opens on a
       // build installed from the Play Store.
       if (_preview && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Preview only — the Google Play payment sheet opens on a build installed from the Play Store.'),
-          ),
-        );
+        showToast(
+            context, 'Preview only — the Google Play payment sheet opens on a build installed from the Play Store.',
+            tone: ToastTone.info);
       }
       return;
     }
@@ -143,17 +144,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
     try {
       await SubscriptionRepository.purchase(package);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You're all set — thanks for subscribing!")),
-      );
+      showToast(context, "You're all set — thanks for subscribing!", tone: ToastTone.success);
       Navigator.pop(context);
     } on PlatformException catch (e) {
       final code = PurchasesErrorHelper.getErrorCode(e);
       if (code == PurchasesErrorCode.purchaseCancelledError) return;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Couldn't complete the purchase. Please try again.")),
-        );
+        showToast(context, "Couldn't complete the purchase. Please try again.", tone: ToastTone.error);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -166,281 +163,455 @@ class _PaywallScreenState extends State<PaywallScreen> {
       await SubscriptionRepository.restore();
       if (!mounted) return;
       final isPro = SubscriptionSession.tier.value == SubscriptionTier.pro;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(isPro
-            ? "Purchase restored — you're on Pro."
-            : 'No previous purchase found on this account.'),
-      ));
+      showToast(context, isPro ? "Purchase restored — you're on Pro." : 'No previous purchase found on this account.',
+          tone: isPro ? ToastTone.success : ToastTone.info);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Couldn't restore purchases. Please try again.")),
-        );
+        showToast(context, "Couldn't restore purchases. Please try again.", tone: ToastTone.error);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  /// Parses a store price string like "$89.00", "Rs 1,200.00" or "1.234,56 €"
+  /// into its number and the text around it (currency symbol). Returns null
+  /// when it can't be read unambiguously — callers then simply hide the
+  /// savings / per-month figures rather than show a wrong one.
+  static ({double value, String prefix, String suffix})? _parsePrice(String s) {
+    final m = RegExp(r'^([^\d]*)([\d.,\s]*\d)(.*)$').firstMatch(s.trim());
+    if (m == null) return null;
+    var num = m.group(2)!.replaceAll(RegExp(r'\s'), '');
+    final lastDot = num.lastIndexOf('.');
+    final lastComma = num.lastIndexOf(',');
+    if (lastDot >= 0 && lastComma >= 0) {
+      // Whichever separator comes last is the decimal one.
+      num = lastDot > lastComma ? num.replaceAll(',', '') : num.replaceAll('.', '').replaceAll(',', '.');
+    } else if (lastComma >= 0) {
+      final decimals = num.length - lastComma - 1;
+      num = decimals == 2 ? num.replaceAll(',', '.') : num.replaceAll(',', '');
+    }
+    final value = double.tryParse(num);
+    if (value == null || value <= 0) return null;
+    return (value: value, prefix: m.group(1)!, suffix: m.group(3)!);
+  }
+
+  /// "Save 50%" for the yearly plan vs. paying monthly for 12 months.
+  String? get _yearlySavings {
+    final monthly = _options.where((o) => o.label == 'Monthly').firstOrNull;
+    final yearly = _options.where((o) => o.label == 'Yearly').firstOrNull;
+    if (monthly == null || yearly == null) return null;
+    final m = _parsePrice(monthly.priceString);
+    final y = _parsePrice(yearly.priceString);
+    if (m == null || y == null || m.prefix != y.prefix || m.suffix != y.suffix) return null;
+    final pct = ((1 - y.value / (m.value * 12)) * 100).round();
+    return pct >= 5 ? 'Save $pct%' : null;
+  }
+
+  /// "$7.42/mo" equivalent for the yearly plan.
+  String? _perMonth(_PlanOption o) {
+    if (o.label != 'Yearly') return null;
+    final y = _parsePrice(o.priceString);
+    if (y == null) return null;
+    return '${y.prefix}${(y.value / 12).toStringAsFixed(2)}${y.suffix}/mo';
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (!_preview && !SubscriptionRepository.isConfigured) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Upgrade to Pro')),
-        body: const _StatusNotice(
-          icon: Icons.workspace_premium_outlined,
-          message: "Subscriptions aren't set up on this build. Ask the developer to configure a RevenueCat API key.",
-        ),
-      );
-    }
+    final p = AuthPalette.of(context);
     final options = _options;
-    final hasPlans = options.isNotEmpty;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Upgrade to Pro')),
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : !hasPlans
-                ? _StatusNotice(
-                    icon: Icons.wifi_off_rounded,
-                    message: "Couldn't load plans right now — check your internet connection and try again.",
-                    onRetry: _retry,
-                  )
-                : Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 480),
-                      // Sticky CTA lives inside the body (Expanded list +
-                      // fixed footer) rather than in the Scaffold's
-                      // bottomNavigationBar slot — the bottomNavigationBar
-                      // form rendered a blank body on this screen, and a plain
-                      // Column is both the fix and a simpler structure.
+    Widget body;
+    if (!_preview && !SubscriptionRepository.isConfigured) {
+      body = const EmptyState(
+        icon: LucideIcons.crown,
+        title: "Pro isn't available yet",
+        message: "Subscriptions aren't available in this version of the app. Everything free still works.",
+      );
+    } else if (_loading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (options.isEmpty) {
+      body = EmptyState(
+        icon: LucideIcons.wifiOff,
+        title: "Couldn't load plans",
+        message: 'Check your internet connection and try again.',
+        actionLabel: 'Try again',
+        onAction: _retry,
+      );
+    } else {
+      final selected = _selected;
+      return Scaffold(
+        backgroundColor: p.background,
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Dark header; the light panel's rounded top overlaps it.
+                    ColoredBox(
+                      color: AppColors.ink,
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(
-                            child: ListView(
-                              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-                              children: [
-                                const _HeroBanner(),
-                                const SizedBox(height: 24),
-                                for (final option in options)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: _PlanTile(
-                                      option: option,
-                                      selected: _selected?.label == option.label,
-                                      onTap: _busy
-                                          ? null
-                                          : () => setState(() => _selected = option),
-                                    ),
-                                  ),
-                                const SizedBox(height: 4),
-                                Center(
-                                  child: TextButton(
-                                    onPressed: _busy ? null : _restore,
-                                    child: const Text('Restore Purchases'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          _ProHero(onClose: () => Navigator.maybePop(context)),
                           Container(
-                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                            height: 28,
                             decoration: BoxDecoration(
-                              color: Theme.of(context).scaffoldBackgroundColor,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF1A1030).withValues(alpha: 0.08),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, -6),
-                                ),
-                              ],
-                            ),
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: (_busy || _selected == null) ? null : _purchase,
-                                child: _busy
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                      )
-                                    : Text(
-                                        _selected == null
-                                            ? 'Continue'
-                                            : 'Continue — ${_selected!.priceString}',
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
-                                      ),
-                              ),
+                              color: p.background,
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-      ),
-    );
-  }
-}
-
-class _HeroBanner extends StatelessWidget {
-  const _HeroBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return ShimmerSweep(
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.ink, AppColors.slate900],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.all(Radius.circular(20)),
-        ),
-        child: Stack(
-          children: [
-            const Positioned(top: -50, right: -60, child: GlowBlob(color: AppColors.primary, size: 160)),
-            const Positioned(
-                bottom: -70, left: -40, child: GlowBlob(color: AppColors.accentGold, size: 140, opacity: 0.28)),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(colors: [AppColors.accentGold, AppColors.accentGoldDeep]),
-                    borderRadius: BorderRadius.all(Radius.circular(12)),
-                  ),
-                  child: const Icon(Icons.workspace_premium_rounded, color: AppColors.ink, size: 24),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Upgrade to Pro',
-                  style: TextStyle(
-                      fontFamily: 'Fraunces', color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Unlock every premium template and get unlimited AI generations.',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12.5, height: 1.4),
-                ),
-                const SizedBox(height: 16),
-                const _FeatureLine(text: 'All premium templates unlocked'),
-                const SizedBox(height: 6),
-                const _FeatureLine(text: 'Unlimited AI generations'),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FeatureLine extends StatelessWidget {
-  final String text;
-  const _FeatureLine({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Icon(Icons.check_circle, color: AppColors.accentGold, size: 15),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 12.5),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PlanTile extends StatelessWidget {
-  final _PlanOption option;
-  final bool selected;
-  final VoidCallback? onTap;
-
-  const _PlanTile({required this.option, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      decoration: AppDecorations.card(highlighted: selected).copyWith(
-        color: selected ? AppColors.accentGold.withValues(alpha: 0.08) : Colors.white,
-        border: selected ? Border.all(color: AppColors.accentGold, width: 1.5) : null,
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: AppColors.accentGold.withValues(alpha: 0.25),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(
-                selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                color: selected ? AppColors.accentGoldDeep : AppColors.slate400,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        Text(
-                          option.label,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5),
-                        ),
-                        if (option.badge != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.accentGold,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              option.badge!,
-                              style: const TextStyle(
-                                  fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.ink),
-                            ),
+                    Container(
+                      color: p.background,
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text('Choose your plan',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: p.title)),
+                              const SizedBox(height: 14),
+                              IntrinsicHeight(
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    for (var i = 0; i < options.length; i++) ...[
+                                      if (i > 0) const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _PlanCard(
+                                          option: options[i],
+                                          selected: selected?.label == options[i].label,
+                                          savings: options[i].label == 'Yearly' ? _yearlySavings : null,
+                                          perMonth: _perMonth(options[i]),
+                                          onTap: _busy ? null : () => setState(() => _selected = options[i]),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${option.priceString} ${option.period}',
-                      style: const TextStyle(color: AppColors.slate600, fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
+            ),
+            Container(
+              color: p.background,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _GoldButton(
+                            label: selected == null
+                                ? 'Start Pro'
+                                : 'Start Pro  ·  ${selected.priceString}${selected.period}',
+                            loading: _busy,
+                            onPressed: selected == null ? null : _purchase,
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(LucideIcons.lock, size: 13, color: p.muted),
+                              const SizedBox(width: 5),
+                              Text('Secure payment by Google Play', style: TextStyle(fontSize: 12.5, color: p.body)),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('Cancel anytime', style: TextStyle(fontSize: 12.5, color: p.body)),
+                              Text('  ·  ', style: TextStyle(fontSize: 12.5, color: p.muted)),
+                              TextButton(
+                                onPressed: _busy ? null : _restore,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: p.title,
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  minimumSize: const Size(0, 36),
+                                  textStyle:
+                                      const TextStyle(fontFamily: 'Inter', fontSize: 12.5, fontWeight: FontWeight.w700),
+                                ),
+                                child: const Text('Restore purchases'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: p.background,
+      appBar: AppBar(
+        backgroundColor: p.background,
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(tooltip: 'Close', icon: const Icon(LucideIcons.x), onPressed: () => Navigator.maybePop(context)),
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: SafeArea(top: false, child: body),
+    );
+  }
+}
+
+/// Dark hero: crown, headline, three benefit lines, and fanned real Pro
+/// template pages as the visual.
+class _ProHero extends StatelessWidget {
+  final VoidCallback onClose;
+  const _ProHero({required this.onClose});
+
+  static const _benefits = [
+    'Every premium template, ready to download',
+    'Unlimited AI writing and job tailoring',
+    'Design your own template with AI',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 12, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: 'Close',
+                icon: Icon(LucideIcons.x, color: Colors.white.withValues(alpha: 0.8)),
+                onPressed: onClose,
+              ),
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(color: AppColors.accentGold, borderRadius: BorderRadius.circular(13)),
+                        child: const Icon(LucideIcons.crown, color: AppColors.ink, size: 22),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'RESUME BUILDER PRO',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.4,
+                          color: AppColors.accentGold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Land the interview, faster.',
+                        style: TextStyle(
+                          fontFamily: 'Fraunces',
+                          fontSize: 28,
+                          height: 1.15,
+                          letterSpacing: -0.3,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const _FannedPages(),
+              ],
+            ),
+            const SizedBox(height: 22),
+            for (final b in _benefits)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10, right: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: AppColors.accentGold.withValues(alpha: 0.18),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(LucideIcons.check, size: 13, color: AppColors.accentGold),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(b,
+                          style: TextStyle(
+                              fontFamily: 'Inter', fontSize: 14.5, color: Colors.white.withValues(alpha: 0.92))),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Three real Pro template first pages, fanned like a hand of cards.
+class _FannedPages extends StatelessWidget {
+  const _FannedPages();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget page(ResumeTemplate t, double angle, Offset offset) => Transform.translate(
+          offset: offset,
+          child: Transform.rotate(
+            angle: angle,
+            child: Container(
+              width: 72,
+              height: 102,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 6)),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: TemplateThumbnail(kind: DocumentKind.resume, template: t),
+              ),
+            ),
+          ),
+        );
+    return SizedBox(
+      width: 122,
+      height: 128,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          page(ResumeTemplate.creative, -0.2, const Offset(-24, 8)),
+          page(ResumeTemplate.elegant, 0.18, const Offset(24, 8)),
+          page(ResumeTemplate.modern, 0, const Offset(0, -2)),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanCard extends StatelessWidget {
+  final _PlanOption option;
+  final bool selected;
+  final String? savings;
+  final String? perMonth;
+  final VoidCallback? onTap;
+
+  const _PlanCard({
+    required this.option,
+    required this.selected,
+    required this.savings,
+    required this.perMonth,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
+    final tag = savings ?? option.badge;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: selected ? AppColors.accentGoldDeep : p.fieldBorder, width: selected ? 2 : 1),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                        color: AppColors.accentGold.withValues(alpha: 0.25),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6)),
+                  ]
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(option.label,
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: p.body)),
+                  ),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: selected ? AppColors.accentGoldDeep : Colors.transparent,
+                      border: Border.all(color: selected ? AppColors.accentGoldDeep : p.fieldBorder, width: 1.6),
+                    ),
+                    child: selected ? const Icon(LucideIcons.check, size: 12, color: Colors.white) : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(option.priceString,
+                    style: TextStyle(
+                        fontFamily: 'Fraunces',
+                        fontSize: 26,
+                        height: 1.1,
+                        fontWeight: FontWeight.w600,
+                        color: p.title)),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                  perMonth ??
+                      (option.label == 'Monthly' ? 'Billed monthly' : 'per ${option.period.replaceAll('/', '')}'),
+                  style: TextStyle(fontSize: 12.5, color: p.body)),
+              if (tag != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: AppColors.accentGold, borderRadius: BorderRadius.circular(999)),
+                  child: Text(tag,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.ink)),
+                ),
+              ],
             ],
           ),
         ),
@@ -449,33 +620,33 @@ class _PlanTile extends StatelessWidget {
   }
 }
 
-class _StatusNotice extends StatelessWidget {
-  final IconData icon;
-  final String message;
-  final VoidCallback? onRetry;
-
-  const _StatusNotice({required this.icon, required this.message, this.onRetry});
+/// Gold primary button for the purchase moment.
+class _GoldButton extends StatelessWidget {
+  final String label;
+  final bool loading;
+  final VoidCallback? onPressed;
+  const _GoldButton({required this.label, required this.loading, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: AppColors.slate400, size: 40),
-            const SizedBox(height: 14),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.slate600),
-            ),
-            if (onRetry != null) ...[
-              const SizedBox(height: 16),
-              OutlinedButton(onPressed: onRetry, child: const Text('Try Again')),
-            ],
-          ],
+    return AbsorbPointer(
+      absorbing: loading,
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.accentGold,
+            foregroundColor: AppColors.ink,
+            disabledBackgroundColor: AppColors.accentGold.withValues(alpha: 0.4),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 15.5, fontWeight: FontWeight.w800),
+          ),
+          child: loading
+              ? const SizedBox(
+                  width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.ink))
+              : Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       ),
     );

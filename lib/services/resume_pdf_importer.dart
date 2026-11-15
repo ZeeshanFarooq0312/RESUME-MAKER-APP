@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:read_pdf_text/read_pdf_text.dart';
 import '../models/resume_data.dart';
+import 'groq_service.dart';
 import 'resume_text_parser.dart';
 
 class ResumeImportException implements Exception {
@@ -45,5 +46,20 @@ class ResumePdfImporter {
     final text = await pickAndExtractText();
     if (text == null) return null;
     return ResumeTextParser.parse(text);
+  }
+
+  /// Lets the user pick a PDF and parses it into [ResumeData] via the AI
+  /// extraction path ([GroqService.extractProfileFromResumeText]) instead of
+  /// the regex-based [ResumeTextParser]. Intended for exports whose layout
+  /// doesn't resemble a typical resume (e.g. a LinkedIn "Save to PDF" profile
+  /// export), where the fixed section-header heuristics in
+  /// [ResumeTextParser] are unlikely to line up. Returns null if the user
+  /// cancels the file picker. Throws [ResumeImportException] under the same
+  /// conditions as [pickAndExtractText], or [AiServiceException] if the AI
+  /// call itself fails.
+  static Future<ResumeData?> pickAndImportWithAi() async {
+    final text = await pickAndExtractText();
+    if (text == null) return null;
+    return GroqService.extractProfileFromResumeText(text);
   }
 }

@@ -2,6 +2,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import '../../models/resume_data.dart';
 import '../pdf_fonts.dart';
+import '../pdf_helpers.dart';
 
 /// Each experience entry gets a small violet dot + connecting left border
 /// (a per-entry "timeline" segment) instead of plain text — the one new
@@ -86,9 +87,9 @@ class TimelineTemplate {
                 children: [
                   pw.Container(
                     padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: pw.BoxDecoration(
+                    decoration: const pw.BoxDecoration(
                       color: PdfColor.fromInt(0xFFEDEAFB),
-                      borderRadius: pw.BorderRadius.circular(8),
+                      borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
                     ),
                     child: pw.Text('${e.startDate} - ${e.endDate}',
                         style: const pw.TextStyle(fontSize: 8.5, color: _violet)),
@@ -99,7 +100,10 @@ class TimelineTemplate {
                   if (e.description.isNotEmpty)
                     pw.Padding(
                       padding: const pw.EdgeInsets.only(top: 3),
-                      child: pw.Text(e.description, style: const pw.TextStyle(fontSize: 10)),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: bulletLines(e.description, fontSize: 10),
+                      ),
                     ),
                 ],
               ),

@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../services/account_repository.dart';
+import '../../services/welcome_repository.dart';
 import '../app_shell.dart';
 import '../onboarding/onboarding_flow.dart';
+import '../onboarding/welcome_screen.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
 
@@ -26,9 +28,18 @@ class AuthGate extends StatefulWidget {
   State<AuthGate> createState() => _AuthGateState();
 }
 
+enum _AuthView { welcome, login, signup }
+
 class _AuthGateState extends State<AuthGate> {
-  bool _showSignup = false;
+  // First launch shows the intro carousel; after that, logged-out users
+  // land straight on Log In.
+  _AuthView _view = WelcomeRepository.seen ? _AuthView.login : _AuthView.welcome;
   late final StreamSubscription<User?> _authSub;
+
+  void _go(_AuthView view) {
+    if (view != _AuthView.welcome) WelcomeRepository.markSeen();
+    setState(() => _view = view);
+  }
 
   @override
   void initState() {
@@ -64,9 +75,26 @@ class _AuthGateState extends State<AuthGate> {
       builder: (context, loggedIn, _) {
         if (loggedIn == null) return _loading;
         if (!loggedIn) {
-          return _showSignup
-              ? SignupScreen(onSwitchToLogin: () => setState(() => _showSignup = false))
-              : LoginScreen(onSwitchToSignup: () => setState(() => _showSignup = true));
+          final Widget screen = switch (_view) {
+            _AuthView.welcome => WelcomeScreen(
+                onGetStarted: () => _go(_AuthView.signup),
+                onLogIn: () => _go(_AuthView.login),
+              ),
+            _AuthView.login => LoginScreen(
+                onSwitchToSignup: () => _go(_AuthView.signup),
+                onBack: () => _go(_AuthView.welcome),
+              ),
+            _AuthView.signup => SignupScreen(
+                onSwitchToLogin: () => _go(_AuthView.login),
+                onBack: () => _go(_AuthView.welcome),
+              ),
+          };
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 280),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: KeyedSubtree(key: ValueKey(_view), child: screen),
+          );
         }
         return ValueListenableBuilder<bool?>(
           valueListenable: AccountSession.onboardingComplete,

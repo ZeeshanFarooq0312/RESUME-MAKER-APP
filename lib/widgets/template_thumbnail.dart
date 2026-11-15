@@ -9,7 +9,6 @@ import '../models/document_entry.dart';
 import '../models/template_kind.dart';
 import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
-import '../theme/app_theme.dart';
 
 // Renders a real, low-res snapshot of a template's first page (filled with
 // sample data) so users can see what a template actually looks like before
@@ -45,8 +44,7 @@ class _TemplateThumbnailState extends State<TemplateThumbnail> {
           final doc = await buildResumeDoc(template as ResumeTemplate, sampleResumeData());
           return doc.save();
         case DocumentKind.coverLetter:
-          final doc =
-              await buildCoverLetterDoc(template as CoverLetterTemplate, sampleCoverLetterData());
+          final doc = await buildCoverLetterDoc(template as CoverLetterTemplate, sampleCoverLetterData());
           return doc.save();
         case DocumentKind.proposal:
           final doc = await buildProposalDoc(template as ProposalTemplate, sampleProposalData());
@@ -65,23 +63,52 @@ class _TemplateThumbnailState extends State<TemplateThumbnail> {
     return FutureBuilder<Uint8List>(
       future: _future,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return Container(
-            color: AppColors.slate100,
-            alignment: Alignment.center,
-            child: const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        }
+        // Skeleton page while rendering — and as the fallback if rendering
+        // fails, rather than spinning forever.
+        if (!snapshot.hasData) return const _SkeletonPage();
         return Image.memory(
           snapshot.data!,
           fit: BoxFit.cover,
           alignment: Alignment.topCenter,
         );
       },
+    );
+  }
+}
+
+class _SkeletonPage extends StatelessWidget {
+  const _SkeletonPage();
+
+  @override
+  Widget build(BuildContext context) {
+    const c = Color(0xFFECEAF3);
+    Widget bar(double f, {double h = 5}) => FractionallySizedBox(
+          widthFactor: f,
+          alignment: Alignment.centerLeft,
+          child: Container(height: h, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3))),
+        );
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(10),
+      child: ClipRect(
+        child: OverflowBox(
+          alignment: Alignment.topLeft,
+          maxHeight: double.infinity,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              bar(0.55, h: 8),
+              const SizedBox(height: 5),
+              bar(0.35),
+              const SizedBox(height: 12),
+              for (final f in [0.3, 0.9, 0.8, 0.85, 0.6]) ...[bar(f), const SizedBox(height: 5)],
+              const SizedBox(height: 7),
+              for (final f in [0.3, 0.88, 0.75, 0.5]) ...[bar(f), const SizedBox(height: 5)],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

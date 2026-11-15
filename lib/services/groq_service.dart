@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
 import '../models/cover_letter_data.dart';
+import '../models/interview_question.dart';
 import '../models/proposal_data.dart';
 import '../models/resume_data.dart';
+import '../models/template_style_spec.dart';
 
 /// Friendly, user-facing error for any AI-feature failure. Every public
 /// [GroqService] method only ever throws this, so callers only need to
@@ -38,7 +41,14 @@ class GroqService {
   // llama-3.3-70b-versatile / llama-3.1-8b-instant are being retired by Groq
   // on 2026-08-16 in favor of the gpt-oss family, so we target that instead.
   static const _model = 'openai/gpt-oss-120b';
+  // gpt-oss-120b is text-only — image input needs a vision-capable model,
+  // used only by [extractJobDescriptionFromImage]. Confirmed against Groq's
+  // live /v1/models endpoint: this is the only model currently reporting
+  // "image" in input_modalities on this account — verify there again
+  // before changing this, rather than guessing a model id from memory.
+  static const _visionModel = 'qwen/qwen3.8-27b';
   static const _timeout = Duration(seconds: 30);
+  static const _visionTimeout = Duration(seconds: 45);
 
   static bool get isConfigured => _apiKey.isNotEmpty;
 
@@ -49,7 +59,7 @@ class GroqService {
   /// error rather than returning it. That's a probabilistic generation
   /// hiccup, not a bad request, so a single automatic retry is the standard
   /// mitigation instead of surfacing it to the user as a failure.
-  static Future<String> _post(Map<String, dynamic> body, {int retriesLeft = 1}) async {
+  static Future<String> _post(Map<String, dynamic> body, {int retriesLeft = 1, Duration? timeout}) async {
     http.Response response;
     try {
       response = await http
@@ -61,7 +71,7 @@ class GroqService {
             },
             body: jsonEncode(body),
           )
-          .timeout(_timeout);
+          .timeout(timeout ?? _timeout);
     } on TimeoutException {
       throw AiServiceException(
           "Couldn't reach the AI service — check your internet connection and try again.");
@@ -94,7 +104,7 @@ class GroqService {
       }
 
       if (code == 'json_validate_failed' && retriesLeft > 0) {
-        return _post(body, retriesLeft: retriesLeft - 1);
+        return _post(body, retriesLeft: retriesLeft - 1, timeout: timeout);
       }
 
       // Surface Groq's actual error message when available (e.g. "invalid_request_error:
@@ -138,6 +148,35 @@ class GroqService {
     });
   }
 
+  /// Like [_complete], but the user message carries an image alongside
+  /// text — routed to [_visionModel] since [_model] is text-only. Used only
+  /// by [extractJobDescriptionFromImage].
+  static Future<String> _completeVision({
+    required String systemPrompt,
+    required String userPrompt,
+    required Uint8List imageBytes,
+    double temperature = 0.2,
+  }) {
+    final dataUrl = 'data:image/jpeg;base64,${base64Encode(imageBytes)}';
+    return _post({
+      'model': _visionModel,
+      'messages': [
+        {'role': 'system', 'content': systemPrompt},
+        {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': userPrompt},
+            {
+              'type': 'image_url',
+              'image_url': {'url': dataUrl},
+            },
+          ],
+        },
+      ],
+      'temperature': temperature,
+    }, timeout: _visionTimeout);
+  }
+
   static Future<T> _guard<T>(Future<T> Function() body) async {
     try {
       return await body();
@@ -157,8 +196,9 @@ class GroqService {
           systemPrompt:
               'You are a professional resume writer. Rewrite the given resume bullet point to '
               'be concise, achievement-oriented, and use strong action verbs. Keep it to 1-2 '
-              'sentences. Return ONLY the rewritten text, with no preamble, no quotes, and no '
-              'markdown formatting.',
+              'sentences. Return ONLY the rewritten text itself — no preamble, no quotes, no '
+              'markdown, and no leading bullet character, dash, or number (the app adds its own '
+              'bullet marker when displaying this).',
           userPrompt: 'Role context: $roleContext\n\nCurrent bullet point:\n$currentText',
         ));
   }
@@ -192,6 +232,34 @@ class GroqService {
               'Position applying for: ${context.jobTitle}\n'
               'Company: ${context.companyName}\n'
               'Recipient: ${context.recipientName} (${context.recipientTitle})',
+        ));
+  }
+
+  /// Drafts a cover letter body for [companyName]/[jobTitle], tailored from an
+  /// existing resume rather than a separately-filled-in cover letter form.
+  static Future<String> generateCoverLetterFromResume({
+    required ResumeData resume,
+    required String companyName,
+    String? jobTitle,
+    String? jobDescription,
+  }) {
+    final experienceLines = resume.experience
+        .map((e) => '- ${e.role} at ${e.company} (${e.startDate} - ${e.endDate}): ${e.description}')
+        .join('\n');
+    final effectiveTitle = jobTitle?.trim().isNotEmpty == true ? jobTitle!.trim() : resume.personalInfo.jobTitle;
+    return _guard(() => _complete(
+          systemPrompt:
+              'You are a professional cover letter writer. Write a 3-4 paragraph cover letter '
+              'body (no salutation, no closing — those are handled separately) for the '
+              'candidate below, based on their resume, tailored to the position and company. '
+              'Return ONLY the body text, no preamble, no quotes, no markdown.',
+          userPrompt: 'Candidate name: ${resume.personalInfo.fullName}\n'
+              'Candidate summary: ${resume.personalInfo.summary}\n'
+              'Position applying for: $effectiveTitle\n'
+              'Company: $companyName\n'
+              'Skills: ${resume.skills.join(", ")}\n'
+              'Experience:\n$experienceLines'
+              '${jobDescription != null && jobDescription.trim().isNotEmpty ? '\n\nJob description:\n${jobDescription.trim()}' : ''}',
         ));
   }
 
@@ -260,6 +328,10 @@ Hard rules:
    relevant to the job description, and may re-word an existing skill's phrasing, but must not
    introduce any skill/technology that isn't already in the input list.
 6. Never fabricate employers, dates, degrees, schools, or credentials under any circumstances.
+7. "description" is rendered as plain bullet lines by the app, one per line of your text, each
+   with its own bullet marker added automatically — so write each line as plain text with NO
+   leading bullet character, dash, asterisk, or number of your own (e.g. write "Led a team of 5
+   engineers", never "- Led a team of 5 engineers" or "1. Led a team of 5 engineers").
 ''',
         userPrompt: 'Candidate profile JSON:\n${jsonEncode(profile.toJson())}\n\n'
             'Job description:\n$jobDescription\n\n'
@@ -392,7 +464,9 @@ Rules:
 2. Keep dates in whatever short form the resume uses (e.g. "Jan 2022", "2020"); use "Present" for
    a current/ongoing entry's endDate.
 3. "description" should summarize the key responsibilities/achievements for that role in 1-3
-   sentences, based only on what's in the text.
+   sentences, based only on what's in the text. The app renders each line as its own bullet with
+   a marker added automatically, so strip any bullet character, dash, asterisk, or number the
+   original resume text had at the start of a line — return plain sentences only.
 4. "skills" should be a flat list of individual skills/technologies, not a paragraph.
 5. Leave a field empty ("" or []) rather than guessing if it isn't clearly present in the text.
 ''',
@@ -411,6 +485,71 @@ Rules:
       } catch (_) {
         throw AiServiceException("Couldn't understand the AI's response — please try again.");
       }
+    });
+  }
+
+  /// Generates likely interview questions for [jobDescription], grounded in
+  /// the candidate's real resume so questions probe their actual experience
+  /// rather than generic ones.
+  static Future<List<InterviewQuestion>> generateInterviewQuestions({
+    required ResumeData resume,
+    required String jobDescription,
+    String? jobTitle,
+  }) {
+    final experienceLines = resume.experience
+        .map((e) => '- ${e.role} at ${e.company} (${e.startDate} - ${e.endDate}): ${e.description}')
+        .join('\n');
+    return _guard(() async {
+      final content = await _complete(
+        jsonMode: true,
+        temperature: 0.5,
+        systemPrompt: '''
+You are an experienced hiring manager preparing a candidate for an interview. You will be given
+the candidate's resume summary and a job description. Return a single JSON object with exactly
+this shape:
+{"questions": [{"question": "", "category": "", "answerTip": ""}]}
+
+Rules:
+1. Return 8-12 questions total, spread across these categories: "Behavioral", "Technical",
+   "Role-specific", and "Questions about gaps or transitions" (only include the last category if
+   genuinely relevant to this candidate's history).
+2. Ground "Role-specific" and "Technical" questions in both the job description and the
+   candidate's actual listed experience/skills — reference specifics from their background
+   where natural, not generic questions anyone could be asked.
+3. "answerTip" is one short sentence (not a full answer) on what a strong response should touch
+   on, based on the candidate's own background.
+4. Never invent facts about the candidate not present in the resume given.
+5. Return ONLY the JSON object, no markdown, no preamble.
+''',
+        userPrompt: 'Job title: ${jobTitle ?? resume.personalInfo.jobTitle}\n'
+            'Job description:\n$jobDescription\n\n'
+            'Candidate summary: ${resume.personalInfo.summary}\n'
+            'Candidate skills: ${resume.skills.join(", ")}\n'
+            'Candidate experience:\n$experienceLines',
+      );
+
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(content) as Map<String, dynamic>;
+      } catch (_) {
+        throw AiServiceException("Couldn't understand the AI's response — please try again.");
+      }
+
+      final rawQuestions = parsed['questions'];
+      if (rawQuestions is! List || rawQuestions.isEmpty) {
+        throw AiServiceException("Couldn't understand the AI's response — please try again.");
+      }
+
+      final questions = <InterviewQuestion>[];
+      for (final q in rawQuestions) {
+        if (q is Map<String, dynamic> && q['question'] is String && (q['question'] as String).trim().isNotEmpty) {
+          questions.add(InterviewQuestion.fromJson(q));
+        }
+      }
+      if (questions.isEmpty) {
+        throw AiServiceException("Couldn't understand the AI's response — please try again.");
+      }
+      return questions;
     });
   }
 
@@ -457,6 +596,93 @@ Rules:
         throw AiServiceException("Couldn't understand the AI's response — please try again.");
       }
       return (summary: summary, suggestions: suggestions);
+    });
+  }
+
+  /// Turns a plain-English description of a desired resume look into a
+  /// [TemplateStyleSpec] — a fixed, enum-backed set of styling choices the
+  /// renderer (DynamicResumeTemplate) knows how to draw. The model is
+  /// constrained to the exact allowed values for each field; any value it
+  /// returns outside that set is silently corrected to a default by
+  /// [TemplateStyleSpec.fromJson] rather than failing the whole generation,
+  /// since a renderable-but-imperfect result beats an error here.
+  static Future<TemplateStyleSpec> generateTemplateStyleSpec({required String description}) {
+    return _guard(() async {
+      final content = await _complete(
+        jsonMode: true,
+        temperature: 0.6,
+        systemPrompt: '''
+You are a resume template stylist. You will be given a plain-English description of how someone
+wants their resume to look. Translate it into a single JSON object with exactly this shape, using
+ONLY the allowed values listed for each field:
+{"accentColor": "", "layoutVariant": "", "density": "", "headerStyle": "", "sectionOrder": []}
+
+Allowed values:
+- "accentColor": one of "violet", "forestGreen", "navyBlue", "burgundy", "gold", "charcoal", "teal", "slate"
+- "layoutVariant": one of "plainHeader" (simple text header, no color block), "bannerHeader" (full-width
+  colored header banner — bolder, more visual)
+- "density": one of "compact", "comfortable", "spacious"
+- "headerStyle": one of "leftAligned", "centered"
+- "sectionOrder": an array containing exactly these four strings, in whatever order best fits the
+  description: "summary", "experience", "education", "skills"
+
+Rules:
+1. Pick the closest matching values for the description's tone/keywords (e.g. "bold and colorful"
+   → bannerHeader + a saturated accentColor like violet or burgundy; "minimal and clean" →
+   plainHeader + charcoal or slate + compact or comfortable; "spacious and elegant" → plainHeader +
+   centered + spacious).
+2. Return ONLY the JSON object, no markdown, no preamble, no values outside the allowed lists.
+''',
+        userPrompt: 'Description: $description',
+      );
+
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(content) as Map<String, dynamic>;
+      } catch (_) {
+        throw AiServiceException("Couldn't understand the AI's response — please try again.");
+      }
+      return TemplateStyleSpec.fromJson(parsed);
+    });
+  }
+
+  /// Reads a photo of a job posting directly (vision, not on-device OCR)
+  /// and returns a clean job-description text — the model transcribes only
+  /// the actual posting content and leaves out whatever surrounding noise
+  /// a raw OCR pass would otherwise capture (UI chrome, ads, watermarks,
+  /// unrelated page text, repeated/garbled characters). The photo is sent
+  /// to Groq to do this, so this is a networked call like every other AI
+  /// feature here — only used where the user has explicitly asked to scan
+  /// a photo.
+  static Future<String> extractJobDescriptionFromImage(Uint8List imageBytes) {
+    return _guard(() async {
+      final content = await _completeVision(
+        systemPrompt: '''
+You are reading a photo of a job posting (a printout, a screen, or a poster) to recover its job
+description text. Transcribe ONLY the actual job posting content — title, company (if shown),
+responsibilities, requirements, qualifications — in clean plain text, preserving its structure
+with line breaks between sections/bullets.
+
+Rules:
+1. Leave out anything that isn't part of the job description itself: browser/app UI chrome, ads,
+   navigation text, watermarks, page numbers, unrelated text elsewhere in the photo.
+2. Fix obvious OCR-style artifacts a camera capture would introduce (stray characters, broken
+   words split across a line wrap, repeated characters) by reading what the text actually says —
+   but never invent or guess content that isn't legible; skip an illegible fragment rather than
+   making something up.
+3. Return ONLY the cleaned job description text, no preamble, no commentary, no markdown.
+4. If the photo doesn't contain a legible job posting at all, return exactly: NO_JOB_DESCRIPTION_FOUND
+''',
+        userPrompt: 'Extract the job description from this photo.',
+        imageBytes: imageBytes,
+      );
+
+      final cleaned = content.trim();
+      if (cleaned.isEmpty || cleaned == 'NO_JOB_DESCRIPTION_FOUND') {
+        throw AiServiceException(
+            "Couldn't find a job description in that photo. Try a clearer, well-lit shot, or paste it manually.");
+      }
+      return cleaned;
     });
   }
 }

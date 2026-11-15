@@ -4,20 +4,31 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../widgets/auth/auth_kit.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'ai_guard.dart';
+import '../widgets/app_feedback.dart';
 import 'package:google_mlkit_translation/google_mlkit_translation.dart' show TranslateLanguage;
 import 'package:printing/printing.dart';
 import 'package:screen_protector/screen_protector.dart';
+import '../models/cover_letter_data.dart';
 import '../models/document_entry.dart';
 import '../models/resume_data.dart';
+import '../models/template_kind.dart';
 import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
+import '../services/ai_usage_tracker.dart';
 import '../services/documents_repository.dart';
+import '../services/groq_service.dart';
 import '../services/subscription_repository.dart';
 import '../services/translation_service.dart';
-import '../theme/app_theme.dart';
-import '../widgets/zoomable_pdf_view.dart';
-import 'paywall_screen.dart';
+import '../widgets/pill_search_field.dart';
+import '../widgets/preview_scaffold.dart';
+import 'cover_letter_template_screen.dart';
+import 'interview_prep_screen.dart';
 import 'template_screen.dart';
+
+
 
 const _templateTitles = {
   ResumeTemplate.classic: 'Classic Resume',
@@ -90,14 +101,13 @@ class _PreviewScreenState extends State<PreviewScreen> {
 
   Future<void> _openTranslateSheet() async {
     if (!_translationSupported) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Translation is available on Android and iOS.'),
-      ));
+      showToast(context, 'Translation is available on Android and iOS.', tone: ToastTone.info);
       return;
     }
     final language = await showModalBottomSheet<TranslateLanguage>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) => const _LanguagePickerSheet(),
     );
     if (language == null || !mounted) return;
@@ -113,7 +123,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
     }
     if (!mounted) return;
 
-    _showProgressDialog('Preparing ${TranslationService.labelFor(language)} translation…');
+    showProgressOverlay(context, 'Preparing ${TranslationService.labelFor(language)} translation…');
     try {
       await TranslationService.ensureModelsReady(language);
       final translated = await TranslationService.translateResumeData(widget.resumeData, language);
@@ -124,56 +134,88 @@ class _PreviewScreenState extends State<PreviewScreen> {
       });
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Couldn't translate — check your internet connection and try again."),
-        ));
+        showToast(context, "Couldn't translate — check your internet connection and try again.", tone: ToastTone.error);
       }
     } finally {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
     }
   }
 
-  Future<bool?> _confirmDownload(TranslateLanguage language) {
-    final label = TranslationService.labelFor(language);
-    return showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Download language pack?'),
-        content: Text(
-          'Translating to $label needs a one-time download (requires Wi-Fi) the first '
-          'time. After that, translation runs fully on your device — no internet needed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Download'),
-          ),
-        ],
-      ),
+  Future<void> _onGenerateCoverLetterPressed() async {
+    if (!GroqService.isConfigured) {
+      showAiUnavailableSheet(context);
+      return;
+    }
+    if (!await AiUsageTracker.canUseAi()) {
+      if (mounted) showAiLimitSheet(context);
+      return;
+    }
+    if (!mounted) return;
+
+    final companyController = TextEditingController();
+    final jobTitleController = TextEditingController(text: widget.resumeData.personalInfo.jobTitle);
+    final submitted = await showInputSheet(
+      context,
+      icon: LucideIcons.mail,
+      title: 'Write a cover letter',
+      message: 'AI writes a cover letter from this resume, tailored to the company and role.',
+      fields: [
+        SheetField(
+            label: 'Company', hint: 'Careem', icon: LucideIcons.building2, controller: companyController, required: true),
+        SheetField(label: 'Job title', hint: 'Product Designer', icon: LucideIcons.briefcase, controller: jobTitleController),
+      ],
+      primaryLabel: 'Write cover letter',
+      primaryIcon: LucideIcons.sparkles,
     );
+    if (!submitted || !mounted) return;
+
+    final companyName = companyController.text.trim();
+    final jobTitle = jobTitleController.text.trim();
+
+    showProgressOverlay(context, 'Writing your cover letter…');
+    try {
+      final body = await GroqService.generateCoverLetterFromResume(
+        resume: widget.resumeData,
+        companyName: companyName,
+        jobTitle: jobTitle.isEmpty ? null : jobTitle,
+      );
+      await AiUsageTracker.recordUsage();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      final letter = CoverLetterData(
+        fullName: widget.resumeData.personalInfo.fullName,
+        email: widget.resumeData.personalInfo.email,
+        phone: widget.resumeData.personalInfo.phone,
+        companyName: companyName,
+        jobTitle: jobTitle.isEmpty ? widget.resumeData.personalInfo.jobTitle : jobTitle,
+        body: body,
+      );
+      if (!mounted) return;
+      Navigator.push(context, MaterialPageRoute(builder: (_) => CoverLetterTemplateScreen(data: letter)));
+    } on AiServiceException catch (e) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) {
+        showToast(context, e.message, tone: ToastTone.error);
+      }
+    } catch (_) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) {
+        showToast(context, 'Something went wrong. Please try again.', tone: ToastTone.error);
+      }
+    }
   }
 
-  void _showProgressDialog(String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        content: Row(
-          children: [
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 16),
-            Expanded(child: Text(message)),
-          ],
-        ),
-      ),
+  Future<bool?> _confirmDownload(TranslateLanguage language) {
+    final label = TranslationService.labelFor(language);
+    return showPromptSheet(
+      context,
+      icon: LucideIcons.languages,
+      title: 'Download $label?',
+      message: 'Translating to $label needs a one-time download, so Wi-Fi is best. '
+          'After that, translation runs fully on your device with no internet needed.',
+      primaryLabel: 'Download',
+      secondaryLabel: 'Cancel',
     );
   }
 
@@ -222,6 +264,9 @@ class _PreviewScreenState extends State<PreviewScreen> {
       templateId: widget.template.name,
       updatedAt: DateTime.now(),
       isFavorite: existing.isFavorite,
+      companyLabel: existing.companyLabel,
+      roleLabel: existing.roleLabel,
+      customStyleSpec: existing.customStyleSpec,
       completionPercent: widget.resumeData.completionPercent,
       payload: widget.resumeData.toJson(),
     ));
@@ -229,7 +274,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
 
   Future<void> _onDownloadPressed() async {
     if (widget.isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic) {
-      await _showUpgradeDialog();
+      await showProUpgradeSheet(context);
       return;
     }
     setState(() => _downloading = true);
@@ -242,124 +287,61 @@ class _PreviewScreenState extends State<PreviewScreen> {
     }
   }
 
-  Future<void> _showUpgradeDialog() {
-    return showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Premium template'),
-        content: const Text('This template is available on Pro. Upgrade to export or download it.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
-            },
-            child: const Text('View Plans'),
-          ),
-        ],
-      ),
+
+  bool get _locked => widget.isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic;
+
+  void _changeTemplate() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => TemplateScreen(resumeData: widget.resumeData, documentId: widget.documentId)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_templateTitles[widget.template]!),
-        actions: [
-          if (!widget.isSample) ...[
-            IconButton(
-              icon: const Icon(Icons.share_outlined),
-              tooltip: 'Share',
-              onPressed: _downloading ? null : _onDownloadPressed,
+    final translated = _translatedLanguage;
+    return PreviewScaffold(
+      title: _templateTitles[widget.template]!,
+      subtitle: widget.isSample ? 'Template preview' : 'Your resume',
+      isPro: widget.template.isPremium,
+      pdf: _pdfFuture,
+      isSample: widget.isSample,
+      onShare: widget.isSample || _downloading ? null : _onDownloadPressed,
+      banner: translated == null
+          ? null
+          : PreviewBanner(
+              icon: LucideIcons.languages,
+              text: 'Translated to ${TranslationService.labelFor(translated)}',
+              actionLabel: 'Show original',
+              onAction: _revertTranslation,
             ),
-            IconButton(
-              icon: const Icon(Icons.translate),
-              tooltip: 'Translate',
-              onPressed: _openTranslateSheet,
-            ),
-          ],
-        ],
-      ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: AppColors.slate600.withValues(alpha: 0.06),
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Text(
-              widget.isSample
-                  ? 'Sample preview with placeholder text — pinch to zoom'
-                  : 'Pinch to zoom in for details',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.slate600, fontSize: 12),
-            ),
-          ),
-          if (_translatedLanguage != null)
-            Container(
-              width: double.infinity,
-              color: AppColors.goldLight.withValues(alpha: 0.35),
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Translated to ${TranslationService.labelFor(_translatedLanguage!)}',
-                      style: const TextStyle(color: AppColors.slate900, fontSize: 12.5),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _revertTranslation,
-                    child: const Text('Revert', style: TextStyle(fontSize: 12.5)),
-                  ),
-                ],
+      tools: widget.isSample
+          ? const []
+          : [
+              PreviewTool(icon: LucideIcons.languages, label: 'Translate', onTap: _openTranslateSheet),
+              PreviewTool(icon: LucideIcons.mail, label: 'Cover letter', onTap: _onGenerateCoverLetterPressed),
+              PreviewTool(
+                icon: LucideIcons.messageSquareText,
+                label: 'Interview',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => InterviewPrepScreen(resumeData: widget.resumeData)),
+                ),
               ),
-            ),
-          Expanded(
-            child: ZoomablePdfView(pdf: _pdfFuture),
-          ),
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF1A1030).withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, -6),
-                  ),
-                ],
-              ),
-              child: widget.isSample
-                  ? SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: widget.onUseTemplate,
-                        child: const Text('Use This Template'),
-                      ),
-                    )
-                  : SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _downloading ? null : _onDownloadPressed,
-                        icon: _downloading
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.download, size: 18),
-                        label: const Text('Download PDF'),
-                      ),
-                    ),
-            ),
-          ),
-        ],
-      ),
+              PreviewTool(icon: LucideIcons.layoutTemplate, label: 'Template', onTap: _changeTemplate),
+            ],
+      primaryLabel: widget.isSample
+          ? 'Use this template'
+          : _locked
+              ? 'Upgrade to download'
+              : 'Download PDF',
+      primaryIcon: widget.isSample
+          ? LucideIcons.arrowRight
+          : _locked
+              ? LucideIcons.crown
+              : LucideIcons.download,
+      primaryLoading: _downloading,
+      onPrimary: widget.isSample ? widget.onUseTemplate : _onDownloadPressed,
     );
   }
 }
@@ -383,54 +365,63 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
     final languages = TranslationService.supportedLanguages
         .where((l) => TranslationService.labelFor(l).toLowerCase().contains(_q.toLowerCase()))
         .toList();
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 16,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Translate Resume', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 4),
-            const Text(
-              'Latin-script languages only for now — Arabic, Hindi, Chinese and similar '
-              'scripts aren\'t supported yet.',
-              style: TextStyle(color: AppColors.slate600, fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _query,
-              decoration: const InputDecoration(
-                hintText: 'Search languages',
-                prefixIcon: Icon(Icons.search),
-              ),
-              onChanged: (v) => setState(() => _q = v),
-            ),
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 320),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: languages.length,
-                itemBuilder: (context, i) {
-                  final lang = languages[i];
-                  return ListTile(
-                    title: Text(TranslationService.labelFor(lang)),
-                    onTap: () => Navigator.pop(context, lang),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Translate resume',
+              style: TextStyle(fontFamily: 'Fraunces', fontSize: 22, fontWeight: FontWeight.w600, color: p.title)),
+          const SizedBox(height: 6),
+          Text(
+            'Runs on your device. Latin-script languages only for now, so Arabic, Hindi, Chinese and '
+            'similar scripts are not supported yet.',
+            style: TextStyle(fontSize: 13.5, height: 1.45, color: p.body),
+          ),
+          const SizedBox(height: 16),
+          PillSearchField(
+            controller: _query,
+            hintText: 'Search languages',
+            onChanged: (v) => setState(() => _q = v.trim()),
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 340),
+            child: languages.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text('No matching language', textAlign: TextAlign.center, style: TextStyle(color: p.body)),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: languages.length,
+                    itemBuilder: (context, i) {
+                      final lang = languages[i];
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.pop(context, lang),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(TranslationService.labelFor(lang),
+                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: p.title)),
+                              ),
+                              Icon(LucideIcons.chevronRight, size: 18, color: p.muted),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

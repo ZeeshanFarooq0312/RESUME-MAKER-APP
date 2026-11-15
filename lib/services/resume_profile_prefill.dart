@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../widgets/auth/auth_kit.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/resume_data.dart';
 import 'profile_repository.dart';
 
@@ -13,21 +15,14 @@ import 'profile_repository.dart';
 Future<ResumeData?> promptResumeStartingData(BuildContext context) async {
   if (!await ProfileRepository.exists()) return null;
   if (!context.mounted) return null;
-  final useProfile = await showDialog<bool>(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text('Start from your profile?'),
-      content: const Text(
-          "We can fill in your name, experience, education, and skills from your saved "
-          "profile — you can still edit anything before saving."),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Start Blank')),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Use My Profile'),
-        ),
-      ],
-    ),
+  final useProfile = await showPromptSheet(
+    context,
+    icon: LucideIcons.userCheck,
+    title: 'Start from your profile?',
+    message: 'We can fill in your name, experience, education and skills from your saved profile. '
+        'You can still edit everything.',
+    primaryLabel: 'Use my profile',
+    secondaryLabel: 'Start blank',
   );
   if (useProfile != true) return null;
   final profile = await ProfileRepository.load();

@@ -136,7 +136,12 @@ class AccountRepository {
 
   /// Returns `{fullName, email}` for display, or null if no one is signed in.
   static Map<String, String>? currentAccount() {
-    final user = FirebaseAuth.instance.currentUser;
+    final User? user;
+    try {
+      user = FirebaseAuth.instance.currentUser;
+    } catch (_) {
+      return null; // Firebase not initialised (e.g. preview rendering)
+    }
     if (user == null) return null;
     return {
       'fullName': user.displayName ?? '',

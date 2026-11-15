@@ -4,6 +4,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../widgets/preview_scaffold.dart';
+import '../models/template_kind.dart';
+import 'ai_guard.dart';
 import 'package:printing/printing.dart';
 import 'package:screen_protector/screen_protector.dart';
 import '../models/document_entry.dart';
@@ -12,9 +16,6 @@ import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
 import '../services/documents_repository.dart';
 import '../services/subscription_repository.dart';
-import '../theme/app_theme.dart';
-import '../widgets/zoomable_pdf_view.dart';
-import 'paywall_screen.dart';
 import 'proposal_template_screen.dart';
 
 const _templateTitles = {
@@ -100,6 +101,9 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
       templateId: widget.template.name,
       updatedAt: DateTime.now(),
       isFavorite: existing.isFavorite,
+      companyLabel: existing.companyLabel,
+      roleLabel: existing.roleLabel,
+      customStyleSpec: existing.customStyleSpec,
       completionPercent: widget.data.completionPercent,
       payload: widget.data.toJson(),
     ));
@@ -107,7 +111,7 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
 
   Future<void> _onDownloadPressed() async {
     if (widget.isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic) {
-      await _showUpgradeDialog();
+      await showProUpgradeSheet(context);
       return;
     }
     setState(() => _downloading = true);
@@ -120,98 +124,42 @@ class _ProposalPreviewScreenState extends State<ProposalPreviewScreen> {
     }
   }
 
-  Future<void> _showUpgradeDialog() {
-    return showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Premium template'),
-        content: const Text('This template is available on Pro. Upgrade to export or download it.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PaywallScreen()));
-            },
-            child: const Text('View Plans'),
-          ),
-        ],
-      ),
-    );
-  }
+
+  bool get _locked => widget.isPremium && SubscriptionSession.tier.value == SubscriptionTier.basic;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_templateTitles[widget.template]!),
-        actions: [
-          if (!widget.isSample)
-            IconButton(
-              icon: const Icon(Icons.share_outlined),
-              tooltip: 'Share',
-              onPressed: _downloading ? null : _onDownloadPressed,
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: AppColors.slate600.withValues(alpha: 0.06),
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Text(
-              widget.isSample
-                  ? 'Sample preview with placeholder text — pinch to zoom'
-                  : 'Pinch to zoom in for details',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.slate600, fontSize: 12),
-            ),
-          ),
-          Expanded(
-            child: ZoomablePdfView(pdf: _pdfFuture),
-          ),
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF1A1030).withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, -6),
-                  ),
-                ],
+    return PreviewScaffold(
+      title: _templateTitles[widget.template]!,
+      subtitle: widget.isSample ? 'Template preview' : 'Your proposal',
+      isPro: widget.template.isPremium,
+      pdf: _pdfFuture,
+      isSample: widget.isSample,
+      onShare: widget.isSample || _downloading ? null : _onDownloadPressed,
+      tools: widget.isSample
+          ? const []
+          : [
+              PreviewTool(
+                icon: LucideIcons.layoutTemplate,
+                label: 'Change template',
+                onTap: () => Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => ProposalTemplateScreen(data: widget.data, documentId: widget.documentId)),
+                ),
               ),
-              child: widget.isSample
-                  ? SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: widget.onUseTemplate,
-                        child: const Text('Use This Template'),
-                      ),
-                    )
-                  : SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _downloading ? null : _onDownloadPressed,
-                        icon: _downloading
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.download, size: 18),
-                        label: const Text('Download PDF'),
-                      ),
-                    ),
-            ),
-          ),
-        ],
-      ),
+            ],
+      primaryLabel: widget.isSample
+          ? 'Use this template'
+          : _locked
+              ? 'Upgrade to download'
+              : 'Download PDF',
+      primaryIcon: widget.isSample
+          ? LucideIcons.arrowRight
+          : _locked
+              ? LucideIcons.crown
+              : LucideIcons.download,
+      primaryLoading: _downloading,
+      onPrimary: widget.isSample ? widget.onUseTemplate : _onDownloadPressed,
     );
   }
 }

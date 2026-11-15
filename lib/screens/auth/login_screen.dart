@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../services/account_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/validators.dart';
+import '../../widgets/auth/auth_kit.dart';
 import '../../widgets/auth_scaffold.dart';
 
 /// Log in with Firebase Authentication. On success this only flips
@@ -10,7 +12,8 @@ import '../../widgets/auth_scaffold.dart';
 /// those notifiers, and swaps itself to the right next screen in place.
 class LoginScreen extends StatefulWidget {
   final VoidCallback onSwitchToSignup;
-  const LoginScreen({super.key, required this.onSwitchToSignup});
+  final VoidCallback? onBack;
+  const LoginScreen({super.key, required this.onSwitchToSignup, this.onBack});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -19,9 +22,10 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
-  bool _obscurePassword = true;
   bool _submitting = false;
-  String? _error;
+  String? _emailError;
+  String? _passwordError;
+  String? _formError;
 
   @override
   void dispose() {
@@ -33,26 +37,32 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _onLogIn() async {
     final email = _email.text.trim();
     final password = _password.text;
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _error = 'Enter your email and password.');
-      return;
+
+    String? emailError;
+    String? passwordError;
+    if (email.isEmpty) {
+      emailError = 'Enter your email address.';
+    } else if (!Validators.isValidEmail(email)) {
+      emailError = "That doesn't look like a valid email.";
     }
-    if (!Validators.isValidEmail(email)) {
-      setState(() => _error = 'Enter a valid email address.');
-      return;
-    }
+    if (password.isEmpty) passwordError = 'Enter your password.';
 
     setState(() {
-      _error = null;
-      _submitting = true;
+      _emailError = emailError;
+      _passwordError = passwordError;
+      _formError = null;
     });
+    if (emailError != null || passwordError != null) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() => _submitting = true);
     try {
       await AccountRepository.login(email: email, password: password);
     } on AuthException catch (e) {
       if (mounted) {
         setState(() {
           _submitting = false;
-          _error = e.message;
+          _formError = e.message;
         });
       }
       return;
@@ -64,95 +74,102 @@ class _LoginScreenState extends State<LoginScreen> {
     AccountSession.loggedIn.value = true;
   }
 
-  void _showForgotPasswordDialog() {
-    showDialog(
+  void _showForgotPassword() {
+    showModalBottomSheet<void>(
       context: context,
-      builder: (_) => _ForgotPasswordDialog(initialEmail: _email.text.trim()),
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _ForgotPasswordSheet(initialEmail: _email.text.trim()),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final p = AuthPalette.of(context);
     return AuthScaffold(
       title: 'Welcome back',
-      subtitle: 'Log in to your account.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextFormField(
-            controller: _email,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.mail_outline),
+      subtitle: 'Log in to pick up where you left off.',
+      onBack: widget.onBack,
+      footer: AuthSwitchLink(
+        prompt: 'New here?',
+        action: 'Create an account',
+        onTap: widget.onSwitchToSignup,
+      ),
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AuthErrorBanner(message: _formError),
+            AuthField(
+              label: 'Email',
+              hint: 'you@example.com',
+              icon: LucideIcons.mail,
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.email],
+              errorText: _emailError,
+              onChanged: (_) {
+                if (_emailError != null) setState(() => _emailError = null);
+              },
             ),
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _password,
-            obscureText: _obscurePassword,
-            decoration: InputDecoration(
-              labelText: 'Password',
-              prefixIcon: const Icon(Icons.lock_outline),
-              suffixIcon: IconButton(
-                icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            const SizedBox(height: 18),
+            AuthField(
+              label: 'Password',
+              hint: 'Your password',
+              icon: LucideIcons.lock,
+              controller: _password,
+              isPassword: true,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.password],
+              errorText: _passwordError,
+              onSubmitted: (_) => _onLogIn(),
+              onChanged: (_) {
+                if (_passwordError != null) setState(() => _passwordError = null);
+              },
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _showForgotPassword,
+                style: TextButton.styleFrom(
+                  foregroundColor: p.body,
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                  textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13.5, fontWeight: FontWeight.w600),
+                ),
+                child: const Text('Forgot password?'),
               ),
             ),
-            textInputAction: TextInputAction.done,
-            onFieldSubmitted: (_) => _onLogIn(),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _showForgotPasswordDialog,
-              child: const Text('Forgot password?'),
+            const SizedBox(height: 12),
+            AuthPrimaryButton(
+              label: 'Log in',
+              loading: _submitting,
+              onPressed: _onLogIn,
             ),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 4),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 12.5)),
           ],
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: _submitting ? null : _onLogIn,
-            child: _submitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('Log In'),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: TextButton(
-              onPressed: widget.onSwitchToSignup,
-              child: const Text("Don't have an account? Sign Up"),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Real password reset via Firebase (a working email link), replacing the
-/// old local-only "clear all your data" dead end — that fallback only
-/// existed because there was no server to send a reset email from.
-class _ForgotPasswordDialog extends StatefulWidget {
+/// Password reset via Firebase (a working email link). Shown as a bottom
+/// sheet with its own "check your inbox" confirmation state, rather than a
+/// dialog that closes into a snackbar.
+class _ForgotPasswordSheet extends StatefulWidget {
   final String initialEmail;
-  const _ForgotPasswordDialog({required this.initialEmail});
+  const _ForgotPasswordSheet({required this.initialEmail});
 
   @override
-  State<_ForgotPasswordDialog> createState() => _ForgotPasswordDialogState();
+  State<_ForgotPasswordSheet> createState() => _ForgotPasswordSheetState();
 }
 
-class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
+class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
   late final _email = TextEditingController(text: widget.initialEmail);
   bool _sending = false;
-  String? _error;
+  bool _sent = false;
+  String? _fieldError;
+  String? _formError;
 
   @override
   void dispose() {
@@ -163,29 +180,31 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
   Future<void> _send() async {
     final email = _email.text.trim();
     if (email.isEmpty) {
-      setState(() => _error = 'Enter your email.');
+      setState(() => _fieldError = 'Enter your email address.');
       return;
     }
     if (!Validators.isValidEmail(email)) {
-      setState(() => _error = 'Enter a valid email address.');
+      setState(() => _fieldError = "That doesn't look like a valid email.");
       return;
     }
     setState(() {
-      _error = null;
+      _fieldError = null;
+      _formError = null;
       _sending = true;
     });
     try {
       await AccountRepository.sendPasswordResetEmail(email: email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('If an account exists for that email, a reset link is on its way.'),
-      ));
-      Navigator.pop(context);
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          _sent = true;
+        });
+      }
     } on AuthException catch (e) {
       if (mounted) {
         setState(() {
           _sending = false;
-          _error = e.message;
+          _formError = e.message;
         });
       }
     }
@@ -193,48 +212,84 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Reset your password'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "We'll email you a link to set a new password.",
-            style: TextStyle(fontSize: 13),
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _email,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.mail_outline),
-            ),
-            keyboardType: TextInputType.emailAddress,
-            onFieldSubmitted: (_) => _send(),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 12.5)),
-          ],
-        ],
+    final p = AuthPalette.of(context);
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 4, 24, 24 + bottomInset),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        child: _sent ? _buildSent(p) : _buildForm(p),
       ),
-      actions: [
-        TextButton(
-          onPressed: _sending ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
+    );
+  }
+
+  Widget _buildForm(AuthPalette p) {
+    return Column(
+      key: const ValueKey('form'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Reset your password',
+          style: TextStyle(fontFamily: 'Fraunces', fontSize: 24, fontWeight: FontWeight.w600, color: p.title),
         ),
-        ElevatedButton(
-          onPressed: _sending ? null : _send,
-          child: _sending
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Send Reset Link'),
+        const SizedBox(height: 8),
+        Text(
+          "Enter the email you signed up with and we'll send you a link to set a new password.",
+          style: TextStyle(fontSize: 14, height: 1.45, color: p.body),
         ),
+        const SizedBox(height: 24),
+        AuthErrorBanner(message: _formError),
+        AuthField(
+          label: 'Email',
+          hint: 'you@example.com',
+          icon: LucideIcons.mail,
+          controller: _email,
+          autofocus: widget.initialEmail.isEmpty,
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.send,
+          autofillHints: const [AutofillHints.email],
+          errorText: _fieldError,
+          onSubmitted: (_) => _send(),
+          onChanged: (_) {
+            if (_fieldError != null) setState(() => _fieldError = null);
+          },
+        ),
+        const SizedBox(height: 24),
+        AuthPrimaryButton(label: 'Send reset link', loading: _sending, onPressed: _send),
+      ],
+    );
+  }
+
+  Widget _buildSent(AuthPalette p) {
+    return Column(
+      key: const ValueKey('sent'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 8),
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: AppColors.accentGold.withValues(alpha: 0.16),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(LucideIcons.mailCheck, color: AppColors.accentGoldDeep, size: 30),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Check your inbox',
+          style: TextStyle(fontFamily: 'Fraunces', fontSize: 24, fontWeight: FontWeight.w600, color: p.title),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'If an account exists for ${_email.text.trim()}, a reset link is on its way. '
+          "It can take a minute — check your spam folder too.",
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 14, height: 1.45, color: p.body),
+        ),
+        const SizedBox(height: 28),
+        AuthPrimaryButton(label: 'Back to log in', onPressed: () => Navigator.pop(context)),
       ],
     );
   }
