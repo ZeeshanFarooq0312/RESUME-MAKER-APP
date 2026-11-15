@@ -7,7 +7,7 @@ import '../../services/groq_service.dart';
 import '../../services/resume_pdf_importer.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth/auth_kit.dart';
-import '../../widgets/shimmer_sweep.dart';
+import '../../widgets/shimmer_sweep.dart' show FloatBob;
 import '../profile_screen.dart';
 
 /// Shown once, right after signup, before the mandatory profile step. Owns
@@ -121,12 +121,19 @@ class _OnboardingChoiceScreenState extends State<OnboardingChoiceScreen> {
       return;
     }
 
-    setState(() {
-      _working = true;
-      _workingStep = 0;
-    });
     try {
-      final text = await ResumePdfImporter.pickAndExtractText();
+      // The progress view appears only once a file is chosen, never behind
+      // the system file picker.
+      final text = await ResumePdfImporter.pickAndExtractText(
+        onPicked: () {
+          if (mounted) {
+            setState(() {
+              _working = true;
+              _workingStep = 0;
+            });
+          }
+        },
+      );
       if (text == null) return; // user cancelled the file picker
       if (mounted) setState(() => _workingStep = 1);
       final extracted = await GroqService.extractProfileFromResumeText(text);
@@ -177,7 +184,7 @@ class _OnboardingChoiceScreenState extends State<OnboardingChoiceScreen> {
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 280),
                 child: _working
-                    ? _WorkingView(key: const ValueKey('working'), step: _workingStep)
+                    ? ImportProgressView(key: const ValueKey('working'), step: _workingStep)
                     : _buildChoice(p),
               ),
             ),
@@ -428,106 +435,144 @@ class _RadioDot extends StatelessWidget {
   }
 }
 
-/// Shown while a resume is being read and parsed: a branded panel with a
-/// step checklist, so the wait feels like progress rather than a spinner.
-class _WorkingView extends StatelessWidget {
+/// Shown after a resume PDF is chosen, while it's read and turned into a
+/// profile: a calm centered mark and a step card, so the wait reads as
+/// progress rather than a spinner.
+class ImportProgressView extends StatelessWidget {
   final int step;
-  const _WorkingView({super.key, required this.step});
+  const ImportProgressView({super.key, required this.step});
 
-  static const _steps = ['Reading your resume', 'Filling in your profile with AI'];
+  static const _steps = [
+    ('Reading your resume', 'Pulling the text out of your PDF'),
+    ('Filling in your profile', 'AI sorts it into experience, education and skills'),
+    ('Ready to review', "You check everything before it's saved"),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final p = AuthPalette.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ShimmerSweep(
-            period: const Duration(milliseconds: 2600),
-            borderRadius: BorderRadius.circular(28),
-            child: Container(
-              height: 200,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                gradient: const LinearGradient(
-                  colors: [AppColors.ink, AppColors.slate900],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const Positioned(
-                      top: -60, right: -40, child: GlowBlob(color: AppColors.accentGold, size: 200, opacity: 0.25)),
-                  FloatBob(
-                    child: Container(
-                      width: 72,
-                      height: 72,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: MediaQuery.sizeOf(context).height * 0.75),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: SizedBox(
+                width: 132,
+                height: 132,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: const LinearGradient(colors: [AppColors.accentGold, AppColors.accentGoldDeep]),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.accentGold.withValues(alpha: 0.4),
-                            blurRadius: 30,
+                        color: AppColors.accentGold.withValues(alpha: 0.10),
+                      ),
+                    ),
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.accentGold.withValues(alpha: 0.16),
+                      ),
+                    ),
+                    FloatBob(
+                      child: Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [AppColors.accentGold, AppColors.accentGoldDeep],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                        ],
+                          boxShadow: [
+                            BoxShadow(color: AppColors.accentGold.withValues(alpha: 0.35), blurRadius: 24),
+                          ],
+                        ),
+                        child: const Icon(LucideIcons.fileScan, color: AppColors.ink, size: 30),
                       ),
-                      child: const Icon(LucideIcons.sparkles, color: AppColors.ink, size: 32),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 32),
-          Text(
-            'Building your profile',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontFamily: 'Fraunces', fontSize: 26, fontWeight: FontWeight.w600, color: p.title),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'This usually takes a few seconds.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14.5, color: p.body),
-          ),
-          const SizedBox(height: 28),
-          for (var i = 0; i < _steps.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Row(
+            const SizedBox(height: 28),
+            Text(
+              'Building your profile',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontFamily: 'Fraunces', fontSize: 28, fontWeight: FontWeight.w600, color: p.title),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This usually takes a few seconds. Please keep the app open.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14.5, height: 1.45, color: p.body),
+            ),
+            const SizedBox(height: 28),
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 4),
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: p.fieldBorder),
+              ),
+              child: Column(
                 children: [
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: i < step
-                        ? const Icon(LucideIcons.circleCheck, size: 24, color: AppColors.success)
-                        : i == step
-                            ? Padding(
-                                padding: const EdgeInsets.all(3),
-                                child: CircularProgressIndicator(strokeWidth: 2.4, color: p.focus),
-                              )
-                            : Icon(LucideIcons.circle, size: 24, color: p.fieldBorder),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _steps[i],
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: i == step ? FontWeight.w600 : FontWeight.w500,
-                        color: i <= step ? p.title : p.muted,
-                      ),
-                    ),
-                  ),
+                  for (var i = 0; i < _steps.length; i++) _stepRow(p, i),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stepRow(AuthPalette p, int i) {
+    final done = i < step;
+    final active = i == step;
+    final (title, detail) = _steps[i];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 26,
+            height: 26,
+            child: done
+                ? const Icon(LucideIcons.circleCheck, size: 24, color: AppColors.success)
+                : active
+                    ? Padding(
+                        padding: const EdgeInsets.all(3),
+                        child: CircularProgressIndicator(strokeWidth: 2.4, color: p.focus),
+                      )
+                    : Icon(LucideIcons.circle, size: 24, color: p.fieldBorder),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                    color: done || active ? p.title : p.muted,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(detail, style: TextStyle(fontSize: 13, height: 1.35, color: p.muted)),
+              ],
+            ),
+          ),
         ],
       ),
     );
