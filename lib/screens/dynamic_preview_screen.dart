@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../widgets/preview_scaffold.dart';
+import '../widgets/app_feedback.dart';
+import '../widgets/design_customizer.dart';
 import 'package:printing/printing.dart';
 import '../models/document_entry.dart';
 import '../models/resume_data.dart';
@@ -11,6 +14,7 @@ import '../models/template_style_spec.dart';
 import '../pdf/pdf_builder.dart';
 import '../pdf/pdf_fonts.dart';
 import '../services/documents_repository.dart';
+import '../pdf/templates/dynamic_resume_template.dart';
 
 /// Preview/export screen for a resume rendered from an AI-generated
 /// [TemplateStyleSpec] rather than a named [ResumeTemplate] — the
@@ -40,14 +44,44 @@ class DynamicPreviewScreen extends StatefulWidget {
 
 class _DynamicPreviewScreenState extends State<DynamicPreviewScreen> {
   bool _downloading = false;
-  late final Future<Uint8List> _pdfFuture = _generatePdf();
+
+  /// The design, including any changes from the Style panel.
+  late TemplateStyleSpec _spec = widget.styleSpec;
+  late Future<Uint8List> _pdfFuture = _generatePdf();
+  Timer? _rerender;
+
+  @override
+  void dispose() {
+    _rerender?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _openStyle() async {
+    final before = _spec.encode();
+    await showDesignCustomizer(
+      context,
+      initial: _spec,
+      original: widget.styleSpec,
+      onChanged: (next) {
+        _spec = next;
+        _rerender?.cancel();
+        _rerender = Timer(const Duration(milliseconds: 220), () {
+          if (mounted) setState(() => _pdfFuture = _generatePdf());
+        });
+      },
+    );
+    if (_spec.encode() != before && widget.documentId != null) {
+      await _touchDocumentEntry();
+      if (mounted) showToast(context, 'Style saved', tone: ToastTone.success);
+    }
+  }
 
   Future<Uint8List> _generatePdf() async {
-    final fontBytes = await PdfFonts.loadBytes();
+    final fontBytes = await PdfFonts.loadBytes(extra: DynamicResumeTemplate.fontsFor(_spec));
     final data = widget.resumeData;
-    final spec = widget.styleSpec;
+    final spec = _spec;
     return Isolate.run(() async {
-      PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold);
+      PdfFonts.primeFromBytes(fontBytes.regular, fontBytes.bold, fontBytes.extras);
       final doc = await buildDynamicResumeDoc(data, spec);
       return doc.save();
     });
@@ -74,7 +108,7 @@ class _DynamicPreviewScreenState extends State<DynamicPreviewScreen> {
       payload: widget.resumeData.toJson(),
       companyLabel: existing.companyLabel,
       roleLabel: existing.roleLabel,
-      customStyleSpec: widget.styleSpec.toJson(),
+      customStyleSpec: _spec.toJson(),
     ));
   }
 
@@ -97,6 +131,7 @@ class _DynamicPreviewScreenState extends State<DynamicPreviewScreen> {
       pdf: _pdfFuture,
       isSample: widget.isSample,
       onShare: widget.isSample || _downloading ? null : _onDownloadPressed,
+      tools: widget.isSample ? const [] : [PreviewTool(icon: LucideIcons.palette, label: 'Style', onTap: _openStyle)],
       primaryLabel: widget.isSample ? 'Use this template' : 'Download PDF',
       primaryIcon: widget.isSample ? LucideIcons.arrowRight : LucideIcons.download,
       primaryLoading: _downloading,

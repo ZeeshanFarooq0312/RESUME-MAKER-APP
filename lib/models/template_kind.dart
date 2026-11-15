@@ -11,6 +11,24 @@ enum ResumeTemplate {
   creative,
   elegant,
   timeline,
+  // Design-spec Pro designs, rendered by the template engine from the
+  // specs in lib/pdf/resume_design_presets.dart. Adding a design = one
+  // value here + one entry there.
+  aurora,
+  meridian,
+  sterling,
+  vivid,
+  atlas,
+  heritage,
+  nova,
+  summit,
+  quartz,
+  ivy,
+  horizon,
+  ember,
+  graphite,
+  sage,
+  prism,
 }
 
 enum CoverLetterTemplate { classic, modern, minimal, bold, formal }

@@ -15,6 +15,7 @@ import 'dynamic_preview_screen.dart';
 import 'preview_screen.dart';
 import 'resume_sections.dart';
 import 'template_screen.dart';
+import '../pdf/resume_design_presets.dart';
 
 const _uuid = Uuid();
 
@@ -53,19 +54,26 @@ class _FormScreenState extends State<FormScreen> {
 
   Future<void> _saveEntry() async {
     _savedSnapshot = jsonEncode(data.toJson());
+    // Read the latest stored version: the preview may have changed the
+    // template or style, and the heart/labels may have changed elsewhere,
+    // since this editor opened.
+    final stored = await DocumentsRepository.find(_entryId);
     await DocumentsRepository.save(DocumentEntry(
       id: _entryId,
       kind: DocumentKind.resume,
       title: data.personalInfo.fullName.isEmpty ? 'My Resume' : data.personalInfo.fullName,
-      templateId: widget.initialTemplate?.name ?? widget.entry?.templateId ?? ResumeTemplate.classic.name,
+      templateId: stored?.templateId ??
+          widget.initialTemplate?.name ??
+          widget.entry?.templateId ??
+          ResumeTemplate.classic.name,
       updatedAt: DateTime.now(),
       completionPercent: data.completionPercent,
       payload: data.toJson(),
       // Keep fields the editor doesn't touch, so saving never drops them.
-      isFavorite: widget.entry?.isFavorite ?? false,
-      companyLabel: widget.entry?.companyLabel,
-      roleLabel: widget.entry?.roleLabel,
-      customStyleSpec: widget.entry?.customStyleSpec,
+      isFavorite: stored?.isFavorite ?? widget.entry?.isFavorite ?? false,
+      companyLabel: stored?.companyLabel ?? widget.entry?.companyLabel,
+      roleLabel: stored?.roleLabel ?? widget.entry?.roleLabel,
+      customStyleSpec: stored?.customStyleSpec ?? widget.entry?.customStyleSpec,
     ));
   }
 
@@ -84,8 +92,25 @@ class _FormScreenState extends State<FormScreen> {
     await _saveEntry();
     if (!mounted) return;
     final template = widget.initialTemplate;
-    final customSpec = widget.entry?.customStyleSpec;
-    if (template != null) {
+    final stored = await DocumentsRepository.find(_entryId);
+    if (!mounted) return;
+    final customSpec = stored?.customStyleSpec ?? widget.entry?.customStyleSpec;
+    final storedTemplate = ResumeTemplate.values.where((t) => t.name == stored?.templateId).firstOrNull;
+    if (storedTemplate != null && customSpec != null && resumeDesignPresets.containsKey(storedTemplate)) {
+      // A customized design reopens straight into that design.
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PreviewScreen(
+            resumeData: data,
+            template: storedTemplate,
+            documentId: _entryId,
+            isPremium: storedTemplate.isPremium,
+            styleOverride: TemplateStyleSpec.fromJson(customSpec),
+          ),
+        ),
+      );
+    } else if (template != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -97,7 +122,7 @@ class _FormScreenState extends State<FormScreen> {
           ),
         ),
       );
-    } else if (widget.entry?.templateId == 'custom' && customSpec != null) {
+    } else if ((stored?.templateId ?? widget.entry?.templateId) == 'custom' && customSpec != null) {
       Navigator.push(
         context,
         MaterialPageRoute(

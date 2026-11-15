@@ -48,17 +48,18 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
 
   Future<void> _saveEntry() async {
     _savedSnapshot = jsonEncode(data.toJson());
+    final stored = await DocumentsRepository.find(_entryId);
     await DocumentsRepository.save(DocumentEntry(
       id: _entryId,
       kind: DocumentKind.proposal,
       title: data.title.isEmpty ? 'My Proposal' : data.title,
-      templateId: widget.initialTemplate?.name ?? widget.entry?.templateId ?? ProposalTemplate.classic.name,
+      templateId: stored?.templateId ?? widget.initialTemplate?.name ?? widget.entry?.templateId ?? ProposalTemplate.classic.name,
       updatedAt: DateTime.now(),
       completionPercent: data.completionPercent,
       payload: data.toJson(),
-      isFavorite: widget.entry?.isFavorite ?? false,
-      companyLabel: widget.entry?.companyLabel,
-      roleLabel: widget.entry?.roleLabel,
+      isFavorite: stored?.isFavorite ?? widget.entry?.isFavorite ?? false,
+      companyLabel: stored?.companyLabel ?? widget.entry?.companyLabel,
+      roleLabel: stored?.roleLabel ?? widget.entry?.roleLabel,
     ));
   }
 
